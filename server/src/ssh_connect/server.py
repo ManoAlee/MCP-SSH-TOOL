@@ -13,9 +13,42 @@ from mcp.server.models import InitializationOptions
 ssh_client: Optional[paramiko.SSHClient] = None
 sftp_client: Optional[paramiko.SFTPClient] = None
 
-# Try to load .env from the root directory C:\ssh-mcp\.env
-env_path = r"C:\ssh-mcp\.env"
-if os.path.exists(env_path):
+# Try to locate the project root and load the .env file dynamically
+current_dir = os.path.dirname(os.path.abspath(__file__))
+env_candidates = []
+
+if os.environ.get("SSH_MCP_ENV"):
+    env_candidates.append(os.environ.get("SSH_MCP_ENV"))
+
+# Add potential project root locations based on typical deployments
+project_root = None
+roots_to_check = [
+    os.path.abspath(os.path.join(current_dir, "..", "..", "..", "..")), # project root if running from server/src/ssh_connect
+    os.path.abspath(os.path.join(current_dir, "..", "..", "..")),       # server/
+    os.getcwd()
+]
+
+for r in roots_to_check:
+    env_file = os.path.join(r, ".env")
+    if os.path.exists(env_file):
+        env_candidates.append(env_file)
+        project_root = r
+        break
+
+# Legacy fallback on Windows
+if not env_candidates and os.name == "nt":
+    legacy_env = r"C:\ssh-mcp\.env"
+    if os.path.exists(legacy_env):
+        env_candidates.append(legacy_env)
+        project_root = r"C:\ssh-mcp"
+
+# Default project root if none was found
+if not project_root:
+    project_root = roots_to_check[0]
+
+# Load the first matching .env file
+if env_candidates:
+    env_path = env_candidates[0]
     try:
         with open(env_path, "r", encoding="utf-8") as f:
             for line in f:
@@ -40,7 +73,31 @@ SSH_KEY_PASSPHRASE = os.environ.get("SSH_KEY_PASSPHRASE", "")
 server = Server("ssh-connect")
 
 # Configure logging to a file for diagnostics (append mode)
-LOG_PATH = os.environ.get("SSH_MCP_LOG", "C:\\ssh-mcp\\logs\\ssh-mcp.log")
+# Default log path inside project_root/logs
+default_log_dir = os.path.join(project_root, "logs")
+try:
+    os.makedirs(default_log_dir, exist_ok=True)
+except Exception:
+    pass
+
+default_log_path = os.path.join(default_log_dir, "ssh-mcp.log")
+LOG_PATH = os.environ.get("SSH_MCP_LOG", default_log_path)
+
+# Ensure LOG_PATH directory exists or fallback to home/tmp
+try:
+    with open(LOG_PATH, "a") as f:
+        pass
+except Exception:
+    # Fallback to home folder ~/.ssh-mcp
+    fallback_dir = os.path.join(os.path.expanduser("~"), ".ssh-mcp")
+    try:
+        os.makedirs(fallback_dir, exist_ok=True)
+        LOG_PATH = os.path.join(fallback_dir, "ssh-mcp.log")
+    except Exception:
+        # Ultimate fallback to system temp dir
+        import tempfile
+        LOG_PATH = os.path.join(tempfile.gettempdir(), "ssh-mcp.log")
+
 logger = logging.getLogger("ssh-connect")
 if not logger.handlers:
     handler = logging.FileHandler(LOG_PATH, encoding="utf-8")

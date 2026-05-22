@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Test SSH MCP connection via uv and JSON-RPC protocol"""
 import json
 import subprocess
@@ -11,17 +11,30 @@ def test_mcp_server():
     # Prepare environment
     env = os.environ.copy()
     
-    # Load .env variables manually for testing if present
-    env_path = r'C:\ssh-mcp\.env'
-    if os.path.exists(env_path):
+    # Determine project root dynamically
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.abspath(os.path.join(current_dir, ".."))
+    
+    env_candidates = [
+        os.path.join(project_root, ".env"),
+        os.path.join(os.getcwd(), ".env")
+    ]
+    if os.name == 'nt':
+        env_candidates.append(r'C:\ssh-mcp\.env')
+        
+    env_path = None
+    for path in env_candidates:
+        if os.path.exists(path):
+            env_path = path
+            break
+            
+    if env_path:
         with open(env_path, 'r', encoding='utf-8') as f:
             for line in f:
                 line = line.strip()
                 if line and not line.startswith('#') and '=' in line:
                     k, v = line.split('=', 1)
                     env.setdefault(k.strip(), v.strip().strip('\'"'))
-                    
-    env['Path'] = "C:\\Users\\<YOUR_USER>\\.local\\bin;" + env.get('Path', '')
     
     # Create a simple JSON-RPC message to initialize the server
     init_message = {
@@ -42,9 +55,31 @@ def test_mcp_server():
     print("=" * 50)
     
     try:
+        # Determine executable path dynamically based on OS
+        exe_paths = [
+            os.path.join(project_root, "server", ".venv", "bin", "ssh-connect"),
+            os.path.join(project_root, "server", ".venv", "Scripts", "ssh-connect.exe"),
+            os.path.join(project_root, "server", ".venv", "Scripts", "ssh-connect"),
+        ]
+        
+        exe_path = None
+        for p in exe_paths:
+            if os.path.exists(p):
+                exe_path = p
+                break
+                
+        if not exe_path:
+            # Fallback if virtualenv not found or running in dev mode
+            if os.name == 'nt':
+                exe_path = os.path.join(project_root, "server", ".venv", "Scripts", "ssh-connect.exe")
+            else:
+                exe_path = os.path.join(project_root, "server", ".venv", "bin", "ssh-connect")
+
+        print(f"Starting server process using: {exe_path}")
+
         # Start the server
         process = subprocess.Popen(
-            [r"C:\ssh-mcp\server\.venv\Scripts\ssh-connect.exe"],
+            [exe_path],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

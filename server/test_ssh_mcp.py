@@ -27,21 +27,30 @@ def call_mcp_tool(tool_name, arguments=None):
     request = {
         "jsonrpc": "2.0",
         "id": 1,
-        "method": "callTool",
+        "method": "tools/call",
         "params": {
             "name": tool_name,
             "arguments": arguments
         }
     }
     
-    # Call the MCP server with the request
-    cmd = [
-        "uv",
-        "--directory",
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "run",
-        "ssh-connect"
-    ]
+    # Call the MCP server with the request (check if uv is installed, fallback to python if not)
+    import shutil
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if shutil.which("uv"):
+        cmd = [
+            "uv",
+            "--directory",
+            project_root,
+            "run",
+            "ssh-connect"
+        ]
+    else:
+        server_py = os.path.join(project_root, "server", "src", "ssh_connect", "server.py")
+        cmd = [
+            sys.executable,
+            server_py
+        ]
     
     result = subprocess.run(
         cmd,
@@ -91,20 +100,20 @@ def main():
     print("\n4. Uploading test file...")
     result = call_mcp_tool("upload", {
         "local_path": local_file,
-        "remote_path": "/home/lanuser/test_file.txt"
+        "remote_path": "test_file_mcp_test.txt"
     })
     print(result)
     
     # 4. List files to verify upload
-    print("\n5. Listing files in /home/lanuser...")
-    result = call_mcp_tool("list_files", {"path": "/home/lanuser"})
+    print("\n5. Listing files in remote home directory...")
+    result = call_mcp_tool("list_files", {"path": "."})
     print(result)
     
     # 5. Download the file to a different location
     download_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "downloaded_test_file.txt")
     print(f"\n6. Downloading file to {download_path}...")
     result = call_mcp_tool("download", {
-        "remote_path": "/home/lanuser/test_file.txt",
+        "remote_path": "test_file_mcp_test.txt",
         "local_path": download_path
     })
     print(result)

@@ -4,12 +4,26 @@ import os
 import sys
 import asyncio
 
-# Setup path for reorganised structure
-sys.path.insert(0, r'C:\ssh-mcp\server\src')
+# Setup path dynamically for reorganised structure
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(current_dir, ".."))
+sys.path.insert(0, os.path.join(project_root, "server", "src"))
 
 # Load .env variables manually for testing if present
-env_path = r'C:\ssh-mcp\.env'
-if os.path.exists(env_path):
+env_candidates = [
+    os.path.join(project_root, ".env"),
+    os.path.join(os.getcwd(), ".env")
+]
+if os.name == 'nt':
+    env_candidates.append(r'C:\ssh-mcp\.env')
+    
+env_path = None
+for path in env_candidates:
+    if os.path.exists(path):
+        env_path = path
+        break
+
+if env_path:
     with open(env_path, 'r', encoding='utf-8') as f:
         for line in f:
             line = line.strip()

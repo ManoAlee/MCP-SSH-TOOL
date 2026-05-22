@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "ssh-connect": {
+      "type": "stdio",
+      "command": "/mnt/c/ssh-mcp/server/.venv/bin/python",
+      "args": [
+        "/mnt/c/ssh-mcp/server/src/ssh_connect/server.py"
+      ],
+      "cwd": "/mnt/c/ssh-mcp/server",
+      "env": {
+        "SSH_MCP_ENV": "/mnt/c/ssh-mcp/.env",
+        "SSH_MCP_LOG": "/mnt/c/ssh-mcp/logs/ssh-mcp.log",
+        "PYTHONUNBUFFERED": "1"
+      },
+      "spawnTimeoutMs": 15000,
+      "startRetries": 2
+    }
+  }
+}

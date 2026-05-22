@@ -8,13 +8,29 @@ def test_ssh_connection():
     """Test SSH connection"""
     
     # Load .env variables manually for testing if present
-    env_path = r'C:\ssh-mcp\.env'
+    # Determine project root dynamically (tests/ is under the root)
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.abspath(os.path.join(current_dir, ".."))
+    
+    env_candidates = [
+        os.path.join(project_root, ".env"),
+        os.path.join(os.getcwd(), ".env")
+    ]
+    if os.name == 'nt':
+        env_candidates.append(r'C:\ssh-mcp\.env')
+        
+    env_path = None
+    for path in env_candidates:
+        if os.path.exists(path):
+            env_path = path
+            break
+
     host = ''
     port = 22
     username = ''
     password = ''
     
-    if os.path.exists(env_path):
+    if env_path:
         with open(env_path, 'r', encoding='utf-8') as f:
             for line in f:
                 line = line.strip()
@@ -28,7 +44,7 @@ def test_ssh_connection():
                     elif k == 'SSH_PASSWORD': password = v
 
     if not host or not username:
-        print("[FAIL] SSH_HOST or SSH_USERNAME not found in C:\\ssh-mcp\\.env")
+        print(f"[FAIL] SSH_HOST or SSH_USERNAME not found in environment or .env file (searched: {env_candidates})")
         return False
 
     print(f"Testing SSH Connection to {host}:{port}...")
