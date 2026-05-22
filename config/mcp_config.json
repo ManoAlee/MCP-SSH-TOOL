@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "ssh-connect": {
+      "type": "stdio",
+      "command": "C:\\ssh-mcp\\server\\.venv\\Scripts\\python.exe",
+      "args": [
+        "C:\\ssh-mcp\\server\\src\\ssh_connect\\server.py"
+      ],
+      "cwd": "C:\\ssh-mcp\\server",
+      "env": {
+        "SSH_MCP_PROJECT_DIR": "C:/ssh-mcp/server",
+        "SSH_MCP_LOG": "C:/ssh-mcp/logs/ssh-mcp.log",
+        "PYTHONUNBUFFERED": "1",
+        "SystemRoot": "C:\\Windows",
+        "SystemDrive": "C:",
+        "PATH": "C:\\Users\\alessandro.meneses.Automotion\\.local\\bin;C:\\Windows\\system32;C:\\Windows;C:\\Windows\\System32\\Wbem"
+      },
+      "encoding": "utf-8",
+      "encodingErrorHandler": "replace",
+      "spawnTimeoutMs": 15000,
+      "startRetries": 2
+    }
+  }
+}
