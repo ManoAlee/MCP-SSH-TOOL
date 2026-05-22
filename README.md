@@ -53,7 +53,7 @@ Este servidor MCP expõe um conjunto de capacidades e ferramentas automatizadas 
 
 Diferente de implementações simples ou scripts de automação improvisados, este servidor foi projetado com base nas melhores práticas globais de engenharia de software e segurança cibernética:
 
-* **Segregação Estrita de Credenciais (Zero Secret Leaking)**: Configurações de conexão reais (Hosts, Portas, Chaves Privadas, Senhas) são extraídas do código fonte e dos arquivos globais de configuração do cliente MCP. Elas residem exclusivamente em um ambiente local isolado no arquivo `.env` (com regras rígidas de `.gitignore`).
+* **Segregação Estrita de Credenciais (Zero Secret Leaking)**: Configurações de conexão reais (Hosts, Portas, Chaves Privadas, Senhas) são extraídas do código fonte e dos arquivos globais de configuração do cliente MCP. Elas residem exclusivamente em um arquivo local `.env` (com regras rígidas de `.gitignore`).
 * **Resiliência a Encoding e Ambientes Legados (Windows Native)**: A infraestrutura do Windows por padrão utiliza codificações ANSI legadas (como CP1252 no console). Este servidor e sua suite de testes foram desenvolvidos para lidar de maneira transparente com conversões de streams stdio e logs, eliminando exceções do tipo `UnicodeEncodeError`.
 * **Gerenciamento Determinístico de Dependências**: Utilização do **Astral UV**, o gerenciador de pacotes em Rust mais veloz da atualidade. O ambiente virtual local `.venv` é provisionado instantaneamente e congelado pelo `uv.lock`, garantindo builds reprodutíveis e runs idênticos.
 * **Handshake e Integridade de Protocolo**: Suite de validação dedicada a simular chamadas e decodificar respostas JSON-RPC via stdio, garantindo o funcionamento do protocolo de comunicação antes de expor as ferramentas ao assistente.
@@ -146,7 +146,7 @@ Copy-Item .env.example .env
 ```
 Abra o arquivo `.env` recém-criado em seu editor de texto de preferência e alterne os valores para as credenciais reais do seu servidor de destino SSH/SFTP:
 ```env
-SSH_HOST=10.0.0.7
+SSH_HOST=<IP_DO_SERVIDOR_SSH>
 SSH_PORT=22
 SSH_USERNAME=seu_usuario_corporativo
 SSH_PASSWORD=sua_senha_secreta_corporativa
@@ -247,7 +247,7 @@ O servidor expõe 6 ferramentas prontas para o consumo do modelo de IA. Abaixo e
     "content": [
       {
         "type": "text",
-        "text": "Conexao SSH e SFTP estabelecida com sucesso com o host 10.0.0.7."
+        "text": "Conexao SSH e SFTP estabelecida com sucesso com o host <SSH_HOST_IP>."
       }
     ]
   }
