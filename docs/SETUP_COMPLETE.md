@@ -1,46 +1,46 @@
-# Configuração de Inicialização Automática - SSH-Connect MCP Server
+﻿# ConfiguraÃ§Ã£o de InicializaÃ§Ã£o AutomÃ¡tica - SSH-Connect MCP Server
 
-## ✅ O QUE FOI CONFIGURADO
+## âœ… O QUE FOI CONFIGURADO
 
-### 1. Scripts de Inicialização
+### 1. Scripts de InicializaÃ§Ã£o
 - **C:\ssh-mcp\StartSSHMCP.bat** - Script principal que inicia o servidor
 - **C:\ssh-mcp\Start-SSHMCPServer.ps1** - Script PowerShell (opcional)
 - **C:\ssh-mcp\Register-StartupTask.ps1** - Script para tarefa agendada (opcional)
 
-### 2. Inicialização Automática
-- **Atalho criado em:** `C:\Users\alessandro.meneses.Automotion\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\SSH-Connect-MCP.lnk`
-- **Tipo:** Inicialização na pasta Startup do Windows
-- **Execução:** Automática sempre que o PC liga
+### 2. InicializaÃ§Ã£o AutomÃ¡tica
+- **Atalho criado em:** `C:\Users\<YOUR_USER>\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\SSH-Connect-MCP.lnk`
+- **Tipo:** InicializaÃ§Ã£o na pasta Startup do Windows
+- **ExecuÃ§Ã£o:** AutomÃ¡tica sempre que o PC liga
 
-### 3. Variáveis de Ambiente
-- **uv adicionado ao PATH:** C:\Users\alessandro.meneses.Automotion\.local\bin
-- **Permissão:** Permanente (registrado nas variáveis de usuário)
+### 3. VariÃ¡veis de Ambiente
+- **uv adicionado ao PATH:** C:\Users\<YOUR_USER>\.local\bin
+- **PermissÃ£o:** Permanente (registrado nas variÃ¡veis de usuÃ¡rio)
 
-### 4. Configuração MCP
-- **Local 1:** C:\Users\alessandro.meneses.Automotion\.gemini\config\mcp_config.json
-- **Local 2:** C:\Users\alessandro.meneses.Automotion\.gemini\antigravity\mcp_config.json
-- **Status:** ✓ Configurado com servidor SSH 10.0.0.7
+### 4. ConfiguraÃ§Ã£o MCP
+- **Local 1:** C:\Users\<YOUR_USER>\.gemini\config\mcp_config.json
+- **Local 2:** C:\Users\<YOUR_USER>\.gemini\antigravity\mcp_config.json
+- **Status:** âœ“ Configurado com servidor SSH 10.0.0.7
 
 ### 5. Logging
 - **Arquivo de log:** C:\ssh-mcp\ssh-mcp.log
 - **Arquivo PID:** C:\ssh-mcp\ssh-mcp.pid
-- **Rastreamento:** Todas as inicializações são registradas
+- **Rastreamento:** Todas as inicializaÃ§Ãµes sÃ£o registradas
 
 ---
 
-## 🚀 COMO FUNCIONA
+## ðŸš€ COMO FUNCIONA
 
-### Na Inicialização do PC:
+### Na InicializaÃ§Ã£o do PC:
 1. O Windows executa o atalho na pasta Startup
-2. O arquivo `StartSSHMCP.bat` é executado
+2. O arquivo `StartSSHMCP.bat` Ã© executado
 3. Adiciona uv ao PATH
 4. Navega para C:\ssh-mcp\ssh-connect-mcp-server
 5. Executa: `uv run ssh-connect`
 6. O servidor MCP inicia em background
-7. Registra a execução no arquivo de log
+7. Registra a execuÃ§Ã£o no arquivo de log
 
 ### No Antigravity:
-1. Após o PC inicializar, o servidor estará disponível automaticamente
+1. ApÃ³s o PC inicializar, o servidor estarÃ¡ disponÃ­vel automaticamente
 2. Use normalmente:
 ```
 use_mcp_tool(server_name="ssh-connect", tool_name="connect", arguments={})
@@ -48,7 +48,7 @@ use_mcp_tool(server_name="ssh-connect", tool_name="connect", arguments={})
 
 ---
 
-## 📋 VERIFICAR SE ESTÁ FUNCIONANDO
+## ðŸ“‹ VERIFICAR SE ESTÃ FUNCIONANDO
 
 ### Verificar o Log:
 ```powershell
@@ -72,46 +72,47 @@ Get-Process | Where-Object {$_.ProcessName -like "*uv*" -or $_.ProcessName -like
 
 ---
 
-## ⚙️ SE PRECISAR PARAR O SERVIDOR
+## âš™ï¸ SE PRECISAR PARAR O SERVIDOR
 
-### Opção 1 - Matar o Processo:
+### OpÃ§Ã£o 1 - Matar o Processo:
 ```powershell
 Stop-Process -Name "*uv*" -Force
 Stop-Process -Name "*python*" -Force
 ```
 
-### Opção 2 - Remover do Startup:
+### OpÃ§Ã£o 2 - Remover do Startup:
 ```powershell
 Remove-Item "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\SSH-Connect-MCP.lnk" -Force
 ```
 
-### Opção 3 - Desabilitar Tarefa (se registrada):
+### OpÃ§Ã£o 3 - Desabilitar Tarefa (se registrada):
 ```powershell
 Disable-ScheduledTask -TaskName "SSH-Connect MCP Server"
 ```
 
 ---
 
-## 🔧 CONFIGURAÇÃO DO SERVIDOR SSH
+## ðŸ”§ CONFIGURAÃ‡ÃƒO DO SERVIDOR SSH
 
 **Host:** 10.0.0.7  
 **Porta:** 22  
-**Usuário:** alessandro.meneses  
-**Autenticação:** Senha  
+**UsuÃ¡rio:** <YOUR_USERNAME>  
+**AutenticaÃ§Ã£o:** Senha  
 
-As credenciais estão armazenadas em:
-- `C:\Users\alessandro.meneses.Automotion\.gemini\config\mcp_config.json`
-- `C:\Users\alessandro.meneses.Automotion\.gemini\antigravity\mcp_config.json`
+As credenciais estÃ£o armazenadas em:
+- `C:\Users\<YOUR_USER>\.gemini\config\mcp_config.json`
+- `C:\Users\<YOUR_USER>\.gemini\antigravity\mcp_config.json`
 
 ---
 
-## ✅ RESUMO FINAL
+## âœ… RESUMO FINAL
 
-- ✓ Servidor SSH-Connect configurado e testado
-- ✓ Inicialização automática registrada na Startup
-- ✓ uv adicionado ao PATH permanentemente
-- ✓ Arquivos de configuração MCP criados
-- ✓ Sistema de logging implementado
-- ✓ Pronto para uso imediato após reinicialização
+- âœ“ Servidor SSH-Connect configurado e testado
+- âœ“ InicializaÃ§Ã£o automÃ¡tica registrada na Startup
+- âœ“ uv adicionado ao PATH permanentemente
+- âœ“ Arquivos de configuraÃ§Ã£o MCP criados
+- âœ“ Sistema de logging implementado
+- âœ“ Pronto para uso imediato apÃ³s reinicializaÃ§Ã£o
 
-**Próxima ação:** Reinicie o PC para confirmar que o servidor inicia automaticamente!
+**PrÃ³xima aÃ§Ã£o:** Reinicie o PC para confirmar que o servidor inicia automaticamente!
+

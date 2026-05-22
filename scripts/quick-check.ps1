@@ -1,4 +1,4 @@
-#!/usr/bin/env powershell
+﻿#!/usr/bin/env powershell
 # Script de Verificacao Rapida - SSH-Connect MCP Server (Estrutura Enterprise)
 # Uso: .\quick-check.ps1
 
@@ -62,17 +62,17 @@ Write-Host ""
 
 Write-Host "CATEGORIA 2: Configuracao MCP" -ForegroundColor Yellow
 Write-Host "------------------------------------" -ForegroundColor Gray
-Test-Item "Config em .gemini/config" { Test-Path "C:\Users\alessandro.meneses.Automotion\.gemini\config\mcp_config.json" -PathType Leaf }
-Test-Item "Config em .gemini/antigravity" { Test-Path "C:\Users\alessandro.meneses.Automotion\.gemini\antigravity\mcp_config.json" -PathType Leaf }
+Test-Item "Config em .gemini/config" { Test-Path "C:\Users\<YOUR_USER>\.gemini\config\mcp_config.json" -PathType Leaf }
+Test-Item "Config em .gemini/antigravity" { Test-Path "C:\Users\<YOUR_USER>\.gemini\antigravity\mcp_config.json" -PathType Leaf }
 Test-Item "MCP contem ssh-connect" {
     try {
-        $json = Get-Content "C:\Users\alessandro.meneses.Automotion\.gemini\config\mcp_config.json" | ConvertFrom-Json
+        $json = Get-Content "C:\Users\<YOUR_USER>\.gemini\config\mcp_config.json" | ConvertFrom-Json
         $json.mcpServers.PSObject.Properties.Name -contains "ssh-connect"
     } catch { $false }
 }
 Test-Item "Configuracao aponta para server/" {
     try {
-        $json = Get-Content "C:\Users\alessandro.meneses.Automotion\.gemini\config\mcp_config.json" | ConvertFrom-Json
+        $json = Get-Content "C:\Users\<YOUR_USER>\.gemini\config\mcp_config.json" | ConvertFrom-Json
         $serverCfg = $json.mcpServers."ssh-connect"
         $serverCfg.command -like "*server\.venv*" -and $serverCfg.cwd -like "*server"
     } catch { $false }
@@ -89,7 +89,7 @@ Write-Host ""
 Write-Host "CATEGORIA 4: Binarios e Dependencias" -ForegroundColor Yellow
 Write-Host "------------------------------------" -ForegroundColor Gray
 Test-Item "uv no PATH" {
-    $env:Path = "C:\Users\alessandro.meneses.Automotion\.local\bin;$env:Path"
+    $env:Path = "C:\Users\<YOUR_USER>\.local\bin;$env:Path"
     $uv = Get-Command uv -ErrorAction SilentlyContinue
     $null -ne $uv
 }
@@ -148,3 +148,4 @@ if ($results.Failed -eq 0 -and $results.Warnings -le 1) {
 Write-Host ""
 Write-Host "Relatorio detalhado sera gerado em: C:\ssh-mcp\docs\VALIDATION_REPORT.md" -ForegroundColor Cyan
 Write-Host ""
+

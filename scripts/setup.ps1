@@ -1,4 +1,4 @@
-# Script Orquestrador de Transicao - Reorganização Enterprise (SSH-Connect)
+﻿# Script Orquestrador de Transicao - ReorganizaÃ§Ã£o Enterprise (SSH-Connect)
 # Uso: Run inside an Administrator PowerShell console:
 #      .\setup.ps1
 
@@ -68,7 +68,7 @@ if (Test-Path $oldServerDir) {
     exit 1
 }
 
-# 4. Mover arquivos de Documentação
+# 4. Mover arquivos de DocumentaÃ§Ã£o
 Write-Host "`n[Passo 4] Organizando documentacao..." -ForegroundColor Yellow
 $docsFiles = @(
     "CHECKLIST_OPERACAO.md",
@@ -87,7 +87,7 @@ foreach ($file in $docsFiles) {
     }
 }
 
-# 5. Mover arquivos de Configuração
+# 5. Mover arquivos de ConfiguraÃ§Ã£o
 Write-Host "`n[Passo 5] Organizando arquivos de configuracao..." -ForegroundColor Yellow
 $configFiles = @(
     "mcp_config_error_fix.json",
@@ -137,10 +137,10 @@ foreach ($log in $logFiles) {
 # 7. Recriar Ambiente Virtual Python (.venv)
 Write-Host "`n[Passo 7] Recriando ambiente virtual Python (.venv) no novo caminho..." -ForegroundColor Yellow
 $venvDir = "C:\ssh-mcp\server\.venv"
-$uvPath = "C:\Users\alessandro.meneses.Automotion\.local\bin\uv.exe"
+$uvPath = "C:\Users\<YOUR_USER>\.local\bin\uv.exe"
 
 # Adicionar uv ao PATH desta sessao
-$env:Path = "C:\Users\alessandro.meneses.Automotion\.local\bin;" + $env:Path
+$env:Path = "C:\Users\<YOUR_USER>\.local\bin;" + $env:Path
 
 if (Test-Path $venvDir) {
     Write-Host "Removendo .venv antigo..." -ForegroundColor Yellow
@@ -187,3 +187,4 @@ if (Test-Path "C:\ssh-mcp\scripts\quick-check.ps1") {
 }
 
 Write-Host "`n=== PROCESSO DE REORGANIZACAO ENTERPRISE CONCLUIDO COM SUCESSO ===" -ForegroundColor Green
+

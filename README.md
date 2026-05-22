@@ -20,6 +20,21 @@ O **MCP SSH Tool** é um servidor de integração de nível corporativo constru�
 
 ---
 
+## 💡 O que este MCP faz? (Funcionalidades Principais)
+
+Este servidor MCP expõe um conjunto de capacidades e ferramentas automatizadas para que qualquer agente de Inteligência Artificial consiga atuar como um administrador de sistemas remoto de forma assistida:
+
+* **⚡ Conexão e Sessão SSH Persistente (`connect`/`disconnect`)**:
+  Permite instanciar conexões SSH persistentes com suporte a autenticação por senha ou chave RSA/ED25519 privada. Ele armazena a sessão ativa em memória (background), eliminando o delay/overhead de reconectar a cada nova ação ou pergunta do usuário.
+* **🛠️ Execução Segura de Comandos de Shell (`execute`)**:
+  Roda qualquer comando bash/sh/PowerShell no servidor remoto de destino. Ele captura de forma isolada e estruturada o `Exit Code` (código de saída), `stdout` (saída padrão) e `stderr` (saída de erros), possuindo proteção nativa por *timeouts* configuráveis para evitar travamento de subprocessos ou loops infinitos de comandos interativos.
+* **📂 Exploração de Sistemas de Arquivos Remotos (`list_files`)**:
+  Navega e mapeia diretórios remotos de maneira estruturada. Retorna dados precisos como tipo de arquivo (Diretório ou Arquivo Regular) e o respectivo tamanho em bytes.
+* **📤 Transferência Bidirecional de Arquivos (`upload`/`download`)**:
+  Habilita o envio de arquivos locais para o servidor SSH remoto e o download de relatórios ou logs do servidor remoto diretamente para a máquina host local por meio do subsistema SFTP robusto da biblioteca Paramiko.
+
+---
+
 ## 📌 Índice
 1. [🌟 Diferenciais de Arquitetura (Senior Level)](#-diferenciais-de-arquitetura-senior-level)
 2. [🧭 Arquitetura de Comunicação e Fluxo de Dados](#-arquitetura-de-comunicação-e-fluxo-de-dados)
@@ -176,7 +191,7 @@ Acesse as configurações de MCP (`Settings -> Features -> MCP`) no menu do edit
 * **Command**: `C:\ssh-mcp\server\.venv\Scripts\ssh-connect.exe`
 
 ### 3. Gemini / Antigravity CLI
-Edite o arquivo global de configuração do seu cliente (`C:\Users\alessandro.meneses.Automotion\.gemini\config\mcp_config.json`) e registre o perfil higienizado:
+Edite o arquivo global de configuração do seu cliente (`C:\Users\<YOUR_USER>\.gemini\config\mcp_config.json`) e registre o perfil higienizado:
 ```json
 {
   "mcpServers": {
@@ -349,7 +364,7 @@ O servidor expõe 6 ferramentas prontas para o consumo do modelo de IA. Abaixo e
   {
     "type": "object",
     "properties": {
-      "remote_path": { "type": "string", "description": "Caminho do arquivo de origem no servidor remoto" },
+      "remote_path": { "type": "string", "description": "Caminho del arquivo de origem no servidor remoto" },
       "local_path": { "type": "string", "description": "Caminho absoluto de destino na máquina local" }
     },
     "required": ["remote_path", "local_path"]

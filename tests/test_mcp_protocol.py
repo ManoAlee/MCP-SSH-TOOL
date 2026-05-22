@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Test SSH MCP connection via uv and JSON-RPC protocol"""
 import json
 import subprocess
@@ -21,7 +21,7 @@ def test_mcp_server():
                     k, v = line.split('=', 1)
                     env.setdefault(k.strip(), v.strip().strip('\'"'))
                     
-    env['Path'] = "C:\\Users\\alessandro.meneses.Automotion\\.local\\bin;" + env.get('Path', '')
+    env['Path'] = "C:\\Users\\<YOUR_USER>\\.local\\bin;" + env.get('Path', '')
     
     # Create a simple JSON-RPC message to initialize the server
     init_message = {
@@ -91,3 +91,4 @@ def test_mcp_server():
 if __name__ == '__main__':
     success = test_mcp_server()
     sys.exit(0 if success else 1)
+

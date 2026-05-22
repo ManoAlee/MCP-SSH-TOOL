@@ -1,12 +1,12 @@
-@echo off
+﻿@echo off
 REM Script para iniciar o servidor MCP SSH-Connect
 REM Este arquivo sera chamado na inicializacao do Windows via Startup folder
 
 setlocal enabledelayedexpansion
 
-REM Configurações
+REM ConfiguraÃ§Ãµes
 set SERVER_PATH=C:\ssh-mcp\server
-set UV_BIN=C:\Users\alessandro.meneses.Automotion\.local\bin
+set UV_BIN=C:\Users\<YOUR_USER>\.local\bin
 set LOG_FILE=C:\ssh-mcp\logs\ssh-mcp.log
 set PID_FILE=C:\ssh-mcp\logs\ssh-mcp.pid
 
@@ -22,13 +22,13 @@ echo [%mydate% %mytime%] === SSH-Connect MCP Server Startup === >> "%LOG_FILE%"
 REM Adicionar uv ao PATH
 set PATH=%UV_BIN%;%PATH%
 
-REM Verificar se o diretório existe
+REM Verificar se o diretÃ³rio existe
 if not exist "%SERVER_PATH%" (
     echo [%mydate% %mytime%] ERROR: Server directory not found: %SERVER_PATH% >> "%LOG_FILE%"
     exit /b 1
 )
 
-REM Verificar se uv está disponível
+REM Verificar se uv estÃ¡ disponÃ­vel
 where /q uv
 if errorlevel 1 (
     echo [%mydate% %mytime%] ERROR: uv command not found >> "%LOG_FILE%"
@@ -37,7 +37,7 @@ if errorlevel 1 (
 
 echo [%mydate% %mytime%] uv found, starting server... >> "%LOG_FILE%"
 
-REM Navegar para o diretório do servidor
+REM Navegar para o diretÃ³rio do servidor
 cd /d "%SERVER_PATH%"
 
 REM Iniciar o servidor em background
@@ -46,3 +46,4 @@ start "" /B uv run ssh-connect
 echo [%mydate% %mytime%] Server started successfully >> "%LOG_FILE%"
 
 exit /b 0
+

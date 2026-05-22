@@ -1,4 +1,4 @@
-{
+﻿{
   "mcpServers": {
     "ssh-connect": {
       "type": "stdio",
@@ -13,7 +13,7 @@
         "PYTHONUNBUFFERED": "1",
         "SystemRoot": "C:\\Windows",
         "SystemDrive": "C:",
-        "PATH": "C:\\Users\\alessandro.meneses.Automotion\\.local\\bin;C:\\Windows\\system32;C:\\Windows;C:\\Windows\\System32\\Wbem"
+        "PATH": "C:\\Users\\<YOUR_USER>\\.local\\bin;C:\\Windows\\system32;C:\\Windows;C:\\Windows\\System32\\Wbem"
       },
       "encoding": "utf-8",
       "encodingErrorHandler": "replace",
@@ -22,3 +22,4 @@
     }
   }
 }
+
