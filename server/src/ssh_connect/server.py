@@ -2,6 +2,8 @@ import os
 from typing import Any, Dict, Optional
 import logging
 import traceback
+import base64
+import asyncio
 
 import mcp.server.stdio
 import mcp.types as types
@@ -9,9 +11,15 @@ import paramiko
 from mcp.server import NotificationOptions, Server
 from mcp.server.models import InitializationOptions
 
-# SSH connection state
+# Connection state
 ssh_client: Optional[paramiko.SSHClient] = None
 sftp_client: Optional[paramiko.SFTPClient] = None
+
+# PowerShell/WinRM connection state
+connection_mode: str = "ssh"
+ps_host: Optional[str] = None
+ps_username: Optional[str] = None
+ps_password: Optional[str] = None
 
 # Try to locate the project root and load the .env file dynamically
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -62,13 +70,14 @@ if env_candidates:
     except Exception:
         pass
 
-# Get SSH configuration from environment variables
+# Get configuration from environment variables
 SSH_HOST = os.environ.get("SSH_HOST", "")
 SSH_PORT = int(os.environ.get("SSH_PORT", "22"))
 SSH_USERNAME = os.environ.get("SSH_USERNAME", "")
 SSH_PASSWORD = os.environ.get("SSH_PASSWORD", "")
 SSH_KEY_PATH = os.environ.get("SSH_KEY_PATH", "")
 SSH_KEY_PASSPHRASE = os.environ.get("SSH_KEY_PASSPHRASE", "")
+CONNECTION_MODE = os.environ.get("CONNECTION_MODE", "ssh").lower()
 
 server = Server("ssh-connect")
 
@@ -105,46 +114,97 @@ if not logger.handlers:
     handler.setFormatter(fmt)
     logger.addHandler(handler)
     logger.setLevel(logging.INFO)
-    # Also mirror an initial startup message
-    logger.info("=== SSH-Connect MCP Server (logging enabled) ===")
+    logger.info("=== SSH-Connect & PowerShell MCP Server (logging enabled) ===")
+
+
+# PowerShell utilities
+def decode_output(b: bytes) -> str:
+    for encoding in ("utf-8", "cp1252", "cp850"):
+        try:
+            return b.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return b.decode("utf-8", errors="replace")
+
+
+async def run_powershell_async(cmd_str: str, timeout: int = 60) -> tuple[int, str, str]:
+    full_cmd = f"$ProgressPreference = 'SilentlyContinue'; {cmd_str}"
+    encoded_cmd = base64.b64encode(full_cmd.encode('utf-16-le')).decode('utf-8')
+    
+    proc = await asyncio.create_subprocess_exec(
+        "powershell.exe",
+        "-NoProfile",
+        "-NonInteractive",
+        "-EncodedCommand",
+        encoded_cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    
+    try:
+        stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        exit_code = proc.returncode
+    except asyncio.TimeoutError:
+        try:
+            proc.kill()
+        except OSError:
+            pass
+        stdout_bytes, stderr_bytes = b"", b"Command timed out"
+        exit_code = -1
+        
+    stderr_str = decode_output(stderr_bytes)
+    if stderr_str.strip().startswith("#< CLIXML"):
+        stderr_str = ""
+        
+    return exit_code, decode_output(stdout_bytes), stderr_str
+
+
+def ps_esc(s: str) -> str:
+    """Escape single quotes for PowerShell single-quoted strings"""
+    return s.replace("'", "''")
 
 
 @server.list_tools()
 async def handle_list_tools() -> list[types.Tool]:
     """
-    List available SSH tools.
+    List available tools.
     Each tool specifies its arguments using JSON Schema validation.
     """
     return [
         types.Tool(
             name="connect",
-            description="Connect to SSH server",
+            description="Connect to SSH server or initialize PowerShell/WinRM target computer",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "host": {
                         "type": "string",
-                        "description": "SSH host (overrides environment variable)",
+                        "description": "Host IP or name of target computer (overrides environment variable)",
                     },
                     "port": {
                         "type": "integer",
-                        "description": "SSH port (overrides environment variable)",
+                        "description": "SSH port (overrides environment variable, SSH mode only)",
                     },
                     "username": {
                         "type": "string",
-                        "description": "SSH username (overrides environment variable)",
+                        "description": "Username (overrides environment variable)",
                     },
                     "password": {
                         "type": "string",
-                        "description": "SSH password (overrides environment variable)",
+                        "description": "Password (overrides environment variable)",
                     },
                     "key_path": {
                         "type": "string",
-                        "description": "Path to SSH key file (overrides environment variable)",
+                        "description": "Path to SSH key file (overrides environment variable, SSH mode only)",
                     },
                     "key_passphrase": {
                         "type": "string",
-                        "description": "Passphrase for SSH key (overrides environment variable)",
+                        "description": "Passphrase for SSH key (overrides environment variable, SSH mode only)",
+                    },
+                    "mode": {
+                        "type": "string",
+                        "description": "Connection mode: 'ssh' or 'powershell' (for Windows domain machines using Invoke-Command)",
+                        "enum": ["ssh", "powershell"],
                     },
                 },
                 "required": [],
@@ -152,7 +212,7 @@ async def handle_list_tools() -> list[types.Tool]:
         ),
         types.Tool(
             name="disconnect",
-            description="Disconnect from SSH server",
+            description="Disconnect from active SSH server or PowerShell target host",
             inputSchema={
                 "type": "object",
                 "properties": {},
@@ -161,7 +221,7 @@ async def handle_list_tools() -> list[types.Tool]:
         ),
         types.Tool(
             name="execute",
-            description="Execute command on SSH server",
+            description="Execute command on active server/host",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -176,7 +236,7 @@ async def handle_list_tools() -> list[types.Tool]:
         ),
         types.Tool(
             name="upload",
-            description="Upload file to SSH server",
+            description="Upload file to active server/host",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -191,7 +251,7 @@ async def handle_list_tools() -> list[types.Tool]:
         ),
         types.Tool(
             name="download",
-            description="Download file from SSH server",
+            description="Download file from active server/host",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -206,7 +266,7 @@ async def handle_list_tools() -> list[types.Tool]:
         ),
         types.Tool(
             name="list_files",
-            description="List files in directory on SSH server",
+            description="List files in directory on active server/host",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -215,6 +275,28 @@ async def handle_list_tools() -> list[types.Tool]:
                 "required": ["path"],
             },
         ),
+        types.Tool(
+            name="powershell_invoke",
+            description="Execute arbitrary PowerShell command locally or on a remote domain machine using Invoke-Command",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "command": {
+                        "type": "string",
+                        "description": "PowerShell command or script block content to execute"
+                    },
+                    "computer_name": {
+                        "type": "string",
+                        "description": "Optional target Windows computer name. If provided, runs the command on that computer using Invoke-Command."
+                    },
+                    "timeout": {
+                        "type": "integer",
+                        "description": "Command timeout in seconds (default: 60)"
+                    }
+                },
+                "required": ["command"]
+            }
+        )
     ]
 
 
@@ -223,7 +305,7 @@ async def handle_call_tool(
     name: str, arguments: dict | None
 ) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """
-    Handle SSH tool execution requests.
+    Handle tool execution requests.
     """
     global ssh_client, sftp_client
 
@@ -244,10 +326,11 @@ async def handle_call_tool(
             return await handle_download(arguments)
         elif name == "list_files":
             return await handle_list_files(arguments)
+        elif name == "powershell_invoke":
+            return await handle_powershell_invoke(arguments)
         else:
             raise ValueError(f"Unknown tool: {name}")
     except Exception as e:
-        # Log full traceback to file for diagnostics
         logger.error("Exception while handling tool '%s': %s", name, str(e))
         tb = traceback.format_exc()
         logger.error(tb)
@@ -260,8 +343,9 @@ async def handle_call_tool(
 
 
 async def handle_connect(arguments: Dict[str, Any]) -> list[types.TextContent]:
-    """Connect to SSH server"""
+    """Connect to SSH server or initialize PowerShell remoting target"""
     global ssh_client, sftp_client
+    global connection_mode, ps_host, ps_username, ps_password
 
     # Close existing connection if any
     if ssh_client:
@@ -271,28 +355,63 @@ async def handle_connect(arguments: Dict[str, Any]) -> list[types.TextContent]:
         sftp_client.close()
         sftp_client = None
 
-    # Get connection parameters (override env vars with arguments if provided)
+    connection_mode = "ssh"
+    ps_host = None
+    ps_username = None
+    ps_password = None
+
+    # Get connection parameters
     host = arguments.get("host", SSH_HOST)
     port = arguments.get("port", SSH_PORT)
     username = arguments.get("username", SSH_USERNAME)
     password = arguments.get("password", SSH_PASSWORD)
     key_path = arguments.get("key_path", SSH_KEY_PATH)
     key_passphrase = arguments.get("key_passphrase", SSH_KEY_PASSPHRASE)
+    mode = arguments.get("mode", CONNECTION_MODE).lower()
 
     if not host:
-        raise ValueError("SSH host is required")
+        raise ValueError("Host is required")
+
+    if mode == "powershell":
+        # Initialize PowerShell remoting validation
+        if username and password:
+            test_cmd = f"""
+            $secpasswd = ConvertTo-SecureString '{ps_esc(password)}' -AsPlainText -Force
+            $creds = New-Object System.Management.Automation.PSCredential ('{ps_esc(username)}', $secpasswd)
+            Invoke-Command -ComputerName '{ps_esc(host)}' -Credential $creds -ScriptBlock {{ 1 }}
+            """
+        else:
+            test_cmd = f"Invoke-Command -ComputerName '{ps_esc(host)}' -ScriptBlock {{ 1 }}"
+
+        logger.info("Validating PowerShell remoting to host: %s", host)
+        exit_code, stdout, stderr = await run_powershell_async(test_cmd, timeout=15)
+        if exit_code != 0:
+            err_msg = stderr.strip() or stdout.strip() or f"Process exited with code {exit_code}"
+            raise ValueError(f"Failed to connect via PowerShell to {host}: {err_msg}")
+
+        connection_mode = "powershell"
+        ps_host = host
+        ps_username = username
+        ps_password = password
+
+        return [
+            types.TextContent(
+                type="text",
+                text=f"Connected to {host} via PowerShell/WinRM (Domain authentication)",
+            )
+        ]
+
+    # SSH mode fallback
     if not username:
         raise ValueError("SSH username is required")
     if not password and not key_path:
         raise ValueError("Either SSH password or key path is required")
 
-    # Create SSH client
     ssh_client = paramiko.SSHClient()
     ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
     try:
         if key_path:
-            # Connect with key authentication
             key = paramiko.RSAKey.from_private_key_file(
                 key_path, password=key_passphrase if key_passphrase else None
             )
@@ -300,7 +419,6 @@ async def handle_connect(arguments: Dict[str, Any]) -> list[types.TextContent]:
                 hostname=host, port=port, username=username, pkey=key, timeout=10
             )
         else:
-            # Connect with password authentication
             ssh_client.connect(
                 hostname=host,
                 port=port,
@@ -309,13 +427,13 @@ async def handle_connect(arguments: Dict[str, Any]) -> list[types.TextContent]:
                 timeout=10,
             )
 
-        # Create SFTP client
         sftp_client = ssh_client.open_sftp()
+        connection_mode = "ssh"
 
         return [
             types.TextContent(
                 type="text",
-                text=f"Connected to {username}@{host}:{port}",
+                text=f"Connected to {username}@{host}:{port} via SSH",
             )
         ]
     except Exception as e:
@@ -326,8 +444,22 @@ async def handle_connect(arguments: Dict[str, Any]) -> list[types.TextContent]:
 
 
 async def handle_disconnect() -> list[types.TextContent]:
-    """Disconnect from SSH server"""
+    """Disconnect from active SSH server or reset PowerShell session state"""
     global ssh_client, sftp_client
+    global connection_mode, ps_host, ps_username, ps_password
+
+    if connection_mode == "powershell":
+        host = ps_host
+        connection_mode = "ssh"
+        ps_host = None
+        ps_username = None
+        ps_password = None
+        return [
+            types.TextContent(
+                type="text",
+                text=f"Disconnected from PowerShell/WinRM host {host}",
+            )
+        ]
 
     if sftp_client:
         sftp_client.close()
@@ -352,17 +484,50 @@ async def handle_disconnect() -> list[types.TextContent]:
 
 
 async def handle_execute(arguments: Dict[str, Any]) -> list[types.TextContent]:
-    """Execute command on SSH server"""
-    global ssh_client
-
-    if not ssh_client:
-        raise ValueError("Not connected to SSH server")
+    """Execute command on active server/host"""
+    global ssh_client, connection_mode, ps_host, ps_username, ps_password
 
     command = arguments.get("command")
     if not command:
         raise ValueError("Command is required")
 
     timeout = arguments.get("timeout", 60)
+
+    if connection_mode == "powershell":
+        if not ps_host:
+            raise ValueError("Not connected to PowerShell host")
+
+        if ps_username and ps_password:
+            ps_cmd = f"""
+            $secpasswd = ConvertTo-SecureString '{ps_esc(ps_password)}' -AsPlainText -Force
+            $creds = New-Object System.Management.Automation.PSCredential ('{ps_esc(ps_username)}', $secpasswd)
+            Invoke-Command -ComputerName '{ps_esc(ps_host)}' -Credential $creds -ScriptBlock {{ {command} }}
+            """
+        else:
+            ps_cmd = f"Invoke-Command -ComputerName '{ps_esc(ps_host)}' -ScriptBlock {{ {command} }}"
+
+        logger.info("Executing remote PowerShell command on %s: %s", ps_host, command)
+        exit_status, stdout_data, stderr_data = await run_powershell_async(ps_cmd, timeout=timeout)
+
+        result = f"Command: {command}\n"
+        result += f"Connection: {ps_host} (PowerShell/WinRM)\n"
+        result += f"Exit status: {exit_status}\n\n"
+
+        if stdout_data:
+            result += f"STDOUT:\n{stdout_data}\n"
+        if stderr_data:
+            result += f"STDERR:\n{stderr_data}\n"
+
+        return [
+            types.TextContent(
+                type="text",
+                text=result,
+            )
+        ]
+
+    # SSH mode
+    if not ssh_client:
+        raise ValueError("Not connected to SSH server")
 
     stdin, stdout, stderr = ssh_client.exec_command(command, timeout=timeout)
 
@@ -388,17 +553,56 @@ async def handle_execute(arguments: Dict[str, Any]) -> list[types.TextContent]:
 
 
 async def handle_upload(arguments: Dict[str, Any]) -> list[types.TextContent]:
-    """Upload file to SSH server"""
-    global sftp_client
-
-    if not sftp_client:
-        raise ValueError("Not connected to SSH server")
+    """Upload file to active server/host"""
+    global sftp_client, connection_mode, ps_host, ps_username, ps_password
 
     local_path = arguments.get("local_path")
     remote_path = arguments.get("remote_path")
 
     if not local_path or not remote_path:
         raise ValueError("Local and remote paths are required")
+
+    if connection_mode == "powershell":
+        if not ps_host:
+            raise ValueError("Not connected to PowerShell host")
+
+        # Copy using a PSSession and Copy-Item -ToSession
+        if ps_username and ps_password:
+            ps_cmd = f"""
+            $secpasswd = ConvertTo-SecureString '{ps_esc(ps_password)}' -AsPlainText -Force
+            $creds = New-Object System.Management.Automation.PSCredential ('{ps_esc(ps_username)}', $secpasswd)
+            $session = New-PSSession -ComputerName '{ps_esc(ps_host)}' -Credential $creds
+            try {{
+                Copy-Item -Path '{ps_esc(local_path)}' -Destination '{ps_esc(remote_path)}' -ToSession $session -Force -ErrorAction Stop
+            }} finally {{
+                Remove-PSSession $session
+            }}
+            """
+        else:
+            ps_cmd = f"""
+            $session = New-PSSession -ComputerName '{ps_esc(ps_host)}'
+            try {{
+                Copy-Item -Path '{ps_esc(local_path)}' -Destination '{ps_esc(remote_path)}' -ToSession $session -Force -ErrorAction Stop
+            }} finally {{
+                Remove-PSSession $session
+            }}
+            """
+
+        logger.info("Uploading file via PowerShell session to %s: %s -> %s", ps_host, local_path, remote_path)
+        exit_code, stdout, stderr = await run_powershell_async(ps_cmd, timeout=120)
+        if exit_code != 0:
+            raise ValueError(f"Failed to upload file via PowerShell: {stderr.strip() or stdout.strip()}")
+
+        return [
+            types.TextContent(
+                type="text",
+                text=f"Uploaded {local_path} to {remote_path} on {ps_host} via PowerShell session",
+            )
+        ]
+
+    # SSH mode
+    if not sftp_client:
+        raise ValueError("Not connected to SSH server")
 
     try:
         sftp_client.put(local_path, remote_path)
@@ -413,17 +617,56 @@ async def handle_upload(arguments: Dict[str, Any]) -> list[types.TextContent]:
 
 
 async def handle_download(arguments: Dict[str, Any]) -> list[types.TextContent]:
-    """Download file from SSH server"""
-    global sftp_client
-
-    if not sftp_client:
-        raise ValueError("Not connected to SSH server")
+    """Download file from active server/host"""
+    global sftp_client, connection_mode, ps_host, ps_username, ps_password
 
     remote_path = arguments.get("remote_path")
     local_path = arguments.get("local_path")
 
     if not remote_path or not local_path:
         raise ValueError("Remote and local paths are required")
+
+    if connection_mode == "powershell":
+        if not ps_host:
+            raise ValueError("Not connected to PowerShell host")
+
+        # Copy using a PSSession and Copy-Item -FromSession
+        if ps_username and ps_password:
+            ps_cmd = f"""
+            $secpasswd = ConvertTo-SecureString '{ps_esc(ps_password)}' -AsPlainText -Force
+            $creds = New-Object System.Management.Automation.PSCredential ('{ps_esc(ps_username)}', $secpasswd)
+            $session = New-PSSession -ComputerName '{ps_esc(ps_host)}' -Credential $creds
+            try {{
+                Copy-Item -Path '{ps_esc(remote_path)}' -Destination '{ps_esc(local_path)}' -FromSession $session -Force -ErrorAction Stop
+            }} finally {{
+                Remove-PSSession $session
+            }}
+            """
+        else:
+            ps_cmd = f"""
+            $session = New-PSSession -ComputerName '{ps_esc(ps_host)}'
+            try {{
+                Copy-Item -Path '{ps_esc(remote_path)}' -Destination '{ps_esc(local_path)}' -FromSession $session -Force -ErrorAction Stop
+            }} finally {{
+                Remove-PSSession $session
+            }}
+            """
+
+        logger.info("Downloading file via PowerShell session from %s: %s -> %s", ps_host, remote_path, local_path)
+        exit_code, stdout, stderr = await run_powershell_async(ps_cmd, timeout=120)
+        if exit_code != 0:
+            raise ValueError(f"Failed to download file via PowerShell: {stderr.strip() or stdout.strip()}")
+
+        return [
+            types.TextContent(
+                type="text",
+                text=f"Downloaded {remote_path} to {local_path} from {ps_host} via PowerShell session",
+            )
+        ]
+
+    # SSH mode
+    if not sftp_client:
+        raise ValueError("Not connected to SSH server")
 
     try:
         sftp_client.get(remote_path, local_path)
@@ -438,15 +681,67 @@ async def handle_download(arguments: Dict[str, Any]) -> list[types.TextContent]:
 
 
 async def handle_list_files(arguments: Dict[str, Any]) -> list[types.TextContent]:
-    """List files in directory on SSH server"""
-    global sftp_client
-
-    if not sftp_client:
-        raise ValueError("Not connected to SSH server")
+    """List files in directory on active server/host"""
+    global sftp_client, connection_mode, ps_host, ps_username, ps_password
 
     path = arguments.get("path")
     if not path:
         raise ValueError("Path is required")
+
+    if connection_mode == "powershell":
+        if not ps_host:
+            raise ValueError("Not connected to PowerShell host")
+
+        # Get list of files structured as JSON
+        inner_cmd = f"Get-ChildItem -Path '{ps_esc(path)}' | Select-Object Name, Length, PSIsContainer | ConvertTo-Json -Compress"
+        
+        if ps_username and ps_password:
+            ps_cmd = f"""
+            $secpasswd = ConvertTo-SecureString '{ps_esc(ps_password)}' -AsPlainText -Force
+            $creds = New-Object System.Management.Automation.PSCredential ('{ps_esc(ps_username)}', $secpasswd)
+            Invoke-Command -ComputerName '{ps_esc(ps_host)}' -Credential $creds -ScriptBlock {{ {inner_cmd} }}
+            """
+        else:
+            ps_cmd = f"Invoke-Command -ComputerName '{ps_esc(ps_host)}' -ScriptBlock {{ {inner_cmd} }}"
+
+        logger.info("Listing remote files on %s for path: %s", ps_host, path)
+        exit_code, stdout, stderr = await run_powershell_async(ps_cmd, timeout=30)
+        
+        if exit_code != 0:
+            raise ValueError(f"Failed to list files: {stderr.strip() or stdout.strip()}")
+
+        file_info = []
+        stdout_clean = stdout.strip()
+        if stdout_clean:
+            try:
+                import json
+                raw_data = json.loads(stdout_clean)
+                items = raw_data if isinstance(raw_data, list) else [raw_data]
+                
+                for item in items:
+                    name = item.get("Name", "")
+                    is_dir = item.get("PSIsContainer", False)
+                    size = item.get("Length", 0)
+                    
+                    if is_dir or size is None:
+                        file_info.append(f"{name} (directory)")
+                    else:
+                        file_info.append(f"{name} (file, {size} bytes)")
+            except Exception as e:
+                # Fallback to plain text output if JSON parsing failed
+                file_info = [stdout_clean]
+
+        result = f"Files in {path} on {ps_host}:\n" + "\n".join(file_info)
+        return [
+            types.TextContent(
+                type="text",
+                text=result,
+            )
+        ]
+
+    # SSH mode
+    if not sftp_client:
+        raise ValueError("Not connected to SSH server")
 
     try:
         file_list = sftp_client.listdir(path)
@@ -474,6 +769,52 @@ async def handle_list_files(arguments: Dict[str, Any]) -> list[types.TextContent
         raise ValueError(f"Failed to list files: {str(e)}")
 
 
+async def handle_powershell_invoke(arguments: Dict[str, Any]) -> list[types.TextContent]:
+    """Execute PowerShell command locally or remotely"""
+    global ps_host, ps_username, ps_password
+
+    command = arguments.get("command")
+    computer_name = arguments.get("computer_name")
+    timeout = arguments.get("timeout", 60)
+
+    if not command:
+        raise ValueError("PowerShell command is required")
+
+    # If computer_name is specified, wrap inside Invoke-Command
+    if computer_name:
+        # Check if we should use active connection's credentials
+        if computer_name == ps_host and ps_username and ps_password:
+            ps_cmd = f"""
+            $secpasswd = ConvertTo-SecureString '{ps_esc(ps_password)}' -AsPlainText -Force
+            $creds = New-Object System.Management.Automation.PSCredential ('{ps_esc(ps_username)}', $secpasswd)
+            Invoke-Command -ComputerName '{ps_esc(computer_name)}' -Credential $creds -ScriptBlock {{ {command} }}
+            """
+        else:
+            ps_cmd = f"Invoke-Command -ComputerName '{ps_esc(computer_name)}' -ScriptBlock {{ {command} }}"
+    else:
+        ps_cmd = command
+
+    logger.info("Executing powershell_invoke (computer_name=%s): %s", computer_name, command)
+    exit_code, stdout, stderr = await run_powershell_async(ps_cmd, timeout=timeout)
+
+    result = f"PowerShell Command: {command}\n"
+    if computer_name:
+        result += f"Target Computer: {computer_name}\n"
+    result += f"Exit status: {exit_code}\n\n"
+
+    if stdout:
+        result += f"STDOUT:\n{stdout}\n"
+    if stderr:
+        result += f"STDERR:\n{stderr}\n"
+
+    return [
+        types.TextContent(
+            type="text",
+            text=result,
+        )
+    ]
+
+
 async def main():
     # Run the server using stdin/stdout streams
     try:
@@ -494,7 +835,6 @@ async def main():
     except Exception as e:
         logger.error("Unhandled exception in main: %s", str(e))
         logger.error(traceback.format_exc())
-        # re-raise to make sure the process exits with non-zero status if needed
         raise
 
 if __name__ == "__main__":
