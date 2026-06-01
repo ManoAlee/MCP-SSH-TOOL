@@ -201,7 +201,11 @@ Adicione o servidor como uma ferramenta **Stdio MCP** nas configurações de des
 * **Argumentos**: `C:\ssh-mcp\server\src\ssh_connect\server.py`
 
 ### Claude Desktop
-Edite seu arquivo `%APPDATA%\Claude\claude_desktop_config.json`:
+
+Para integrar o servidor MCP no Claude Desktop, edite o arquivo de configuração localizado em `%APPDATA%\Claude\claude_desktop_config.json`. 
+
+Você pode definir as variáveis de conexão diretamente no objeto `"env"` (eliminando a necessidade de arquivo `.env` para o Claude Desktop):
+
 ```json
 {
   "mcpServers": {
@@ -213,14 +217,19 @@ Edite seu arquivo `%APPDATA%\Claude\claude_desktop_config.json`:
       ],
       "cwd": "C:\\ssh-mcp\\server",
       "env": {
-        "SSH_MCP_PROJECT_DIR": "C:/ssh-mcp/server",
-        "SSH_MCP_LOG": "C:/ssh-mcp/logs/ssh-mcp.log",
+        "SSH_HOST": "localhost",
+        "CONNECTION_MODE": "powershell",
+        "SSH_PORT": "22",
+        "SSH_USERNAME": "",
+        "SSH_PASSWORD": "",
         "PYTHONUNBUFFERED": "1"
       }
     }
   }
 }
 ```
+> [!TIP]
+> Deixe os campos `SSH_USERNAME` e `SSH_PASSWORD` vazios para que o Claude Desktop utilize o **Kerberos SSO** do usuário logado na máquina de forma automática.
 
 ---
 
