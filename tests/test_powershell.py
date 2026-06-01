@@ -27,8 +27,15 @@ async def run_powershell_async(cmd_str: str, timeout: int = 30) -> tuple[int, st
     full_cmd = f"$ProgressPreference = 'SilentlyContinue'; {cmd_str}"
     encoded_cmd = base64.b64encode(full_cmd.encode('utf-16-le')).decode('utf-8')
     
+    powershell_exe = "powershell.exe"
+    if os.name == "nt":
+        system_root = os.environ.get("SystemRoot", "C:\\Windows")
+        standard_path = os.path.join(system_root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+        if os.path.exists(standard_path):
+            powershell_exe = standard_path
+
     proc = await asyncio.create_subprocess_exec(
-        "powershell.exe",
+        powershell_exe,
         "-NoProfile",
         "-NonInteractive",
         "-EncodedCommand",
@@ -109,6 +116,43 @@ class TestPowerShellMechanics(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             self.loop.run_until_complete(server.handle_connect(args))
         self.assertIn("fake-host-nonexistent-12345", str(ctx.exception))
+
+    def test_get_unc_path(self):
+        """Verify normalization of remote paths to UNC paths"""
+        self.assertEqual(server.get_unc_path("host-test", "C:\\temp\\file.txt"), "\\\\host-test\\c$\\temp\\file.txt")
+        self.assertEqual(server.get_unc_path("host-test", "D:/SoMachine/"), "\\\\host-test\\d$\\SoMachine/")
+        self.assertEqual(server.get_unc_path("host-test", "\\\\already-unc\\share"), "\\\\already-unc\\share")
+
+    def test_local_computer_features(self):
+        """Test connect, execute, and list_files on localhost directly"""
+        # Test connect
+        res_conn = self.loop.run_until_complete(server.handle_connect({"host": "localhost", "mode": "powershell"}))
+        self.assertIn("Connected to local computer", res_conn[0].text)
+
+        # Test execute
+        res_exec = self.loop.run_until_complete(server.handle_execute({"command": "Write-Output 'Local Run'" }))
+        self.assertIn("Connection: local (localhost)", res_exec[0].text)
+        self.assertIn("Local Run", res_exec[0].text)
+
+        # Test list_files
+        test_path = os.path.dirname(os.path.abspath(__file__))
+        res_list = self.loop.run_until_complete(server.handle_list_files({"path": test_path}))
+        self.assertIn("Files in", res_list[0].text)
+        self.assertIn("test_powershell.py", res_list[0].text)
+
+        # Test get_system_info
+        res_info = self.loop.run_until_complete(server.handle_get_system_info())
+        self.assertIn("System Diagnostics Info", res_info[0].text)
+        self.assertIn("OS", res_info[0].text)
+
+        # Test manage_service (status check for wuauserv)
+        res_service = self.loop.run_until_complete(server.handle_manage_service({"service_name": "wuauserv", "action": "status"}))
+        self.assertIn("Service action 'status' on 'wuauserv'", res_service[0].text)
+        self.assertIn("wuauserv", res_service[0].text)
+
+        # Test read_event_logs (read 2 entries from Application log)
+        res_logs = self.loop.run_until_complete(server.handle_read_event_logs({"log_name": "Application", "count": 2}))
+        self.assertIn("Recent event logs from Application", res_logs[0].text)
 
 
 if __name__ == '__main__':

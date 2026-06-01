@@ -117,6 +117,31 @@ if not logger.handlers:
     logger.info("=== SSH-Connect & PowerShell MCP Server (logging enabled) ===")
 
 
+def get_unc_path(host: str, path: str) -> str:
+    """Normalize remote Windows path to UNC format using administrative shares (C$, D$, etc.)"""
+    if path.startswith("\\\\"):
+        return path
+    if len(path) >= 2 and path[1] == ":" and path[0].isalpha():
+        drive_letter = path[0].lower()
+        rest = path[2:].lstrip("\\/")
+        return f"\\\\{host}\\{drive_letter}$\\{rest}"
+    return f"\\\\{host}\\c$\\{path.lstrip('\\/')}"
+
+
+def is_local_host(host: Optional[str]) -> bool:
+    """Check if the given host represents the local machine"""
+    if not host:
+        return False
+    h = host.lower()
+    local_names = {"localhost", "127.0.0.1", "."}
+    try:
+        import socket
+        local_names.add(socket.gethostname().lower())
+    except:
+        pass
+    return h in local_names
+
+
 # PowerShell utilities
 def decode_output(b: bytes) -> str:
     for encoding in ("utf-8", "cp1252", "cp850"):
@@ -131,8 +156,15 @@ async def run_powershell_async(cmd_str: str, timeout: int = 60) -> tuple[int, st
     full_cmd = f"$ProgressPreference = 'SilentlyContinue'; {cmd_str}"
     encoded_cmd = base64.b64encode(full_cmd.encode('utf-16-le')).decode('utf-8')
     
+    powershell_exe = "powershell.exe"
+    if os.name == "nt":
+        system_root = os.environ.get("SystemRoot", "C:\\Windows")
+        standard_path = os.path.join(system_root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+        if os.path.exists(standard_path):
+            powershell_exe = standard_path
+
     proc = await asyncio.create_subprocess_exec(
-        "powershell.exe",
+        powershell_exe,
         "-NoProfile",
         "-NonInteractive",
         "-EncodedCommand",
@@ -162,6 +194,27 @@ async def run_powershell_async(cmd_str: str, timeout: int = 60) -> tuple[int, st
 def ps_esc(s: str) -> str:
     """Escape single quotes for PowerShell single-quoted strings"""
     return s.replace("'", "''")
+
+
+async def run_active_powershell(command: str, timeout: int = 60) -> tuple[int, str, str]:
+    """Runs a powershell command on the active target host (local or remote)"""
+    global ps_host, ps_username, ps_password
+    if not ps_host:
+        raise ValueError("Not connected to PowerShell host")
+        
+    if is_local_host(ps_host):
+        return await run_powershell_async(command, timeout=timeout)
+        
+    if ps_username and ps_password:
+        ps_cmd = f"""
+        $secpasswd = ConvertTo-SecureString '{ps_esc(ps_password)}' -AsPlainText -Force
+        $creds = New-Object System.Management.Automation.PSCredential ('{ps_esc(ps_username)}', $secpasswd)
+        Invoke-Command -ComputerName '{ps_esc(ps_host)}' -Credential $creds -ScriptBlock {{ {command} }}
+        """
+    else:
+        ps_cmd = f"Invoke-Command -ComputerName '{ps_esc(ps_host)}' -ScriptBlock {{ {command} }}"
+        
+    return await run_powershell_async(ps_cmd, timeout=timeout)
 
 
 @server.list_tools()
@@ -296,6 +349,60 @@ async def handle_list_tools() -> list[types.Tool]:
                 },
                 "required": ["command"]
             }
+        ),
+        types.Tool(
+            name="get_system_info",
+            description="Diagnose active host: gathers CPU load, memory usage, disk space, network interfaces, and OS version.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        ),
+        types.Tool(
+            name="manage_service",
+            description="Manage a system service (start, stop, restart, or check status) on active host",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "service_name": {
+                        "type": "string",
+                        "description": "Name of the system service (e.g. wuauserv, sshd, apache2)",
+                    },
+                    "action": {
+                        "type": "string",
+                        "description": "Action to perform",
+                        "enum": ["status", "start", "stop", "restart", "enable", "disable"],
+                    },
+                },
+                "required": ["service_name", "action"],
+            },
+        ),
+        types.Tool(
+            name="read_event_logs",
+            description="Fetch recent diagnostic system/application event logs on active host",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "log_name": {
+                        "type": "string",
+                        "description": "Log channel (Windows: e.g. System, Application; Linux: e.g. syslog, auth)",
+                        "default": "System",
+                    },
+                    "level": {
+                        "type": "string",
+                        "description": "Filter by level/entry type",
+                        "enum": ["Error", "Warning", "Information", "All"],
+                        "default": "All",
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of recent log entries to retrieve (default: 10)",
+                        "default": 10,
+                    },
+                },
+                "required": [],
+            },
         )
     ]
 
@@ -328,6 +435,12 @@ async def handle_call_tool(
             return await handle_list_files(arguments)
         elif name == "powershell_invoke":
             return await handle_powershell_invoke(arguments)
+        elif name == "get_system_info":
+            return await handle_get_system_info()
+        elif name == "manage_service":
+            return await handle_manage_service(arguments)
+        elif name == "read_event_logs":
+            return await handle_read_event_logs(arguments)
         else:
             raise ValueError(f"Unknown tool: {name}")
     except Exception as e:
@@ -373,6 +486,18 @@ async def handle_connect(arguments: Dict[str, Any]) -> list[types.TextContent]:
         raise ValueError("Host is required")
 
     if mode == "powershell":
+        if is_local_host(host):
+            connection_mode = "powershell"
+            ps_host = host
+            ps_username = username
+            ps_password = password
+            return [
+                types.TextContent(
+                    type="text",
+                    text=f"Connected to local computer ({host}) via PowerShell",
+                )
+            ]
+
         # Initialize PowerShell remoting validation
         if username and password:
             test_cmd = f"""
@@ -497,6 +622,23 @@ async def handle_execute(arguments: Dict[str, Any]) -> list[types.TextContent]:
         if not ps_host:
             raise ValueError("Not connected to PowerShell host")
 
+        if is_local_host(ps_host):
+            logger.info("Executing local PowerShell command: %s", command)
+            exit_status, stdout_data, stderr_data = await run_powershell_async(command, timeout=timeout)
+            result = f"Command: {command}\n"
+            result += f"Connection: local ({ps_host})\n"
+            result += f"Exit status: {exit_status}\n\n"
+            if stdout_data:
+                result += f"STDOUT:\n{stdout_data}\n"
+            if stderr_data:
+                result += f"STDERR:\n{stderr_data}\n"
+            return [
+                types.TextContent(
+                    type="text",
+                    text=result,
+                )
+            ]
+
         if ps_username and ps_password:
             ps_cmd = f"""
             $secpasswd = ConvertTo-SecureString '{ps_esc(ps_password)}' -AsPlainText -Force
@@ -566,6 +708,27 @@ async def handle_upload(arguments: Dict[str, Any]) -> list[types.TextContent]:
         if not ps_host:
             raise ValueError("Not connected to PowerShell host")
 
+        # Try copying directly via administrative share (C$, D$, etc.)
+        try:
+            import shutil
+            unc_path = get_unc_path(ps_host, remote_path)
+            logger.info("Attempting direct upload via UNC path: %s -> %s", local_path, unc_path)
+            
+            # Ensure target directory exists
+            target_dir = os.path.dirname(unc_path)
+            os.makedirs(target_dir, exist_ok=True)
+            
+            shutil.copy2(local_path, unc_path)
+            logger.info("Direct upload via UNC successful")
+            return [
+                types.TextContent(
+                    type="text",
+                    text=f"Uploaded {local_path} to {remote_path} on {ps_host} via administrative share (C$)",
+                )
+            ]
+        except Exception as e:
+            logger.warning("Direct upload via UNC failed: %s. Falling back to PowerShell session.", str(e))
+
         # Copy using a PSSession and Copy-Item -ToSession
         if ps_username and ps_password:
             ps_cmd = f"""
@@ -629,6 +792,28 @@ async def handle_download(arguments: Dict[str, Any]) -> list[types.TextContent]:
     if connection_mode == "powershell":
         if not ps_host:
             raise ValueError("Not connected to PowerShell host")
+
+        # Try copying directly via administrative share (C$, D$, etc.)
+        try:
+            import shutil
+            unc_path = get_unc_path(ps_host, remote_path)
+            logger.info("Attempting direct download via UNC path: %s -> %s", unc_path, local_path)
+            
+            # Ensure local target directory exists
+            target_dir = os.path.dirname(local_path)
+            if target_dir:
+                os.makedirs(target_dir, exist_ok=True)
+                
+            shutil.copy2(unc_path, local_path)
+            logger.info("Direct download via UNC successful")
+            return [
+                types.TextContent(
+                    type="text",
+                    text=f"Downloaded {remote_path} to {local_path} from {ps_host} via administrative share (C$)",
+                )
+            ]
+        except Exception as e:
+            logger.warning("Direct download via UNC failed: %s. Falling back to PowerShell session.", str(e))
 
         # Copy using a PSSession and Copy-Item -FromSession
         if ps_username and ps_password:
@@ -695,7 +880,9 @@ async def handle_list_files(arguments: Dict[str, Any]) -> list[types.TextContent
         # Get list of files structured as JSON
         inner_cmd = f"Get-ChildItem -Path '{ps_esc(path)}' | Select-Object Name, Length, PSIsContainer | ConvertTo-Json -Compress"
         
-        if ps_username and ps_password:
+        if is_local_host(ps_host):
+            ps_cmd = inner_cmd
+        elif ps_username and ps_password:
             ps_cmd = f"""
             $secpasswd = ConvertTo-SecureString '{ps_esc(ps_password)}' -AsPlainText -Force
             $creds = New-Object System.Management.Automation.PSCredential ('{ps_esc(ps_username)}', $secpasswd)
@@ -780,8 +967,8 @@ async def handle_powershell_invoke(arguments: Dict[str, Any]) -> list[types.Text
     if not command:
         raise ValueError("PowerShell command is required")
 
-    # If computer_name is specified, wrap inside Invoke-Command
-    if computer_name:
+    # If computer_name is specified and not local, wrap inside Invoke-Command
+    if computer_name and not is_local_host(computer_name):
         # Check if we should use active connection's credentials
         if computer_name == ps_host and ps_username and ps_password:
             ps_cmd = f"""
@@ -813,6 +1000,168 @@ async def handle_powershell_invoke(arguments: Dict[str, Any]) -> list[types.Text
             text=result,
         )
     ]
+
+
+async def handle_get_system_info() -> list[types.TextContent]:
+    """Diagnose active host: gathers CPU load, memory usage, disk space, network interfaces, and OS version."""
+    global connection_mode, ssh_client, ps_host
+    
+    if connection_mode == "powershell":
+        if not ps_host:
+            raise ValueError("Not connected to PowerShell host")
+            
+        diag_cmd = """
+        $os = Get-CimInstance Win32_OperatingSystem | Select-Object Caption, Version, OSArchitecture, TotalVisibleMemorySize, FreePhysicalMemory
+        $cpu = Get-CimInstance Win32_Processor | Select-Object Name, LoadPercentage
+        $disks = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" | Select-Object DeviceID, Size, FreeSpace
+        $net = Get-CimInstance Win32_NetworkAdapterConfiguration -Filter "IPEnabled=True" | Select-Object Description, IPAddress
+        
+        $diag = @{
+            OS = $os.Caption + " (" + $os.Version + ") " + $os.OSArchitecture
+            Memory = @{
+                TotalGB = [math]::Round($os.TotalVisibleMemorySize / 1MB, 2)
+                FreeGB = [math]::Round($os.FreePhysicalMemory / 1MB, 2)
+                UsedGB = [math]::Round(($os.TotalVisibleMemorySize - $os.FreePhysicalMemory) / 1MB, 2)
+            }
+            CPU = @{
+                Model = $cpu.Name
+                LoadPercent = $cpu.LoadPercentage
+            }
+            Disks = $disks | ForEach-Object {
+                @{
+                    Drive = $_.DeviceID
+                    TotalGB = [math]::Round($_.Size / 1GB, 2)
+                    FreeGB = [math]::Round($_.FreeSpace / 1GB, 2)
+                    UsedPercent = [math]::Round((($_.Size - $_.FreeSpace) / $_.Size) * 100, 2)
+                }
+            }
+            Network = $net | ForEach-Object {
+                @{
+                    Adapter = $_.Description
+                    IP = $_.IPAddress -join ", "
+                }
+            }
+        }
+        $diag | ConvertTo-Json -Depth 4 -Compress
+        """
+        exit_code, stdout, stderr = await run_active_powershell(diag_cmd)
+        if exit_code != 0:
+            raise ValueError(f"Diagnostics failed: {stderr.strip() or stdout.strip()}")
+            
+        return [types.TextContent(type="text", text=f"System Diagnostics Info ({ps_host}):\n{stdout.strip()}")]
+        
+    elif connection_mode == "ssh":
+        if not ssh_client:
+            raise ValueError("Not connected to SSH server")
+            
+        cmd = "echo '--- OS ---'; uname -a; echo '--- CPU ---'; top -b -n 1 | grep 'Cpu(s)' | head -n 1; echo '--- Memory ---'; free -m; echo '--- Disk ---'; df -h"
+        stdin, stdout, stderr = ssh_client.exec_command(cmd, timeout=30)
+        stdout_data = stdout.read().decode("utf-8")
+        stderr_data = stderr.read().decode("utf-8")
+        exit_status = stdout.channel.recv_exit_status()
+        
+        if exit_status != 0:
+            raise ValueError(f"Diagnostics failed: {stderr_data}")
+            
+        return [types.TextContent(type="text", text=f"System Diagnostics Info:\n{stdout_data}")]
+    else:
+        raise ValueError("Invalid connection mode")
+
+
+async def handle_manage_service(arguments: Dict[str, Any]) -> list[types.TextContent]:
+    """Manage a system service (start, stop, restart, or check status) on active host"""
+    global connection_mode, ssh_client, ps_host
+    service_name = arguments.get("service_name")
+    action = arguments.get("action")
+    
+    if not service_name or not action:
+        raise ValueError("service_name and action are required")
+        
+    if connection_mode == "powershell":
+        if not ps_host:
+            raise ValueError("Not connected to PowerShell host")
+            
+        if action == "status":
+            cmd = f"Get-Service -Name '{ps_esc(service_name)}' | Select-Object Name, DisplayName, Status | ConvertTo-Json -Compress"
+        elif action == "start":
+            cmd = f"Start-Service -Name '{ps_esc(service_name)}' -PassThru | Select-Object Name, Status | ConvertTo-Json -Compress"
+        elif action == "stop":
+            cmd = f"Stop-Service -Name '{ps_esc(service_name)}' -Force -PassThru | Select-Object Name, Status | ConvertTo-Json -Compress"
+        elif action == "restart":
+            cmd = f"Restart-Service -Name '{ps_esc(service_name)}' -Force -PassThru | Select-Object Name, Status | ConvertTo-Json -Compress"
+        elif action == "enable":
+            cmd = f"Set-Service -Name '{ps_esc(service_name)}' -StartupType Automatic; Get-Service -Name '{ps_esc(service_name)}' | Select-Object Name, StartupType | ConvertTo-Json -Compress"
+        elif action == "disable":
+            cmd = f"Set-Service -Name '{ps_esc(service_name)}' -StartupType Disabled; Get-Service -Name '{ps_esc(service_name)}' | Select-Object Name, StartupType | ConvertTo-Json -Compress"
+            
+        exit_code, stdout, stderr = await run_active_powershell(cmd)
+        if exit_code != 0:
+            raise ValueError(f"Service management failed: {stderr.strip() or stdout.strip()}")
+        return [types.TextContent(type="text", text=f"Service action '{action}' on '{service_name}' ({ps_host}):\n{stdout.strip()}")]
+        
+    elif connection_mode == "ssh":
+        if not ssh_client:
+            raise ValueError("Not connected to SSH server")
+            
+        if action == "status":
+            cmd = f"systemctl status {service_name}"
+        elif action in ("start", "stop", "restart", "enable", "disable"):
+            cmd = f"sudo systemctl {action} {service_name} && systemctl status {service_name}"
+            
+        stdin, stdout, stderr = ssh_client.exec_command(cmd, timeout=30)
+        stdout_data = stdout.read().decode("utf-8")
+        stderr_data = stderr.read().decode("utf-8")
+        exit_status = stdout.channel.recv_exit_status()
+        
+        return [types.TextContent(type="text", text=f"Service Action Result:\nSTDOUT:\n{stdout_data}\nSTDERR:\n{stderr_data}")]
+    else:
+        raise ValueError("Invalid connection mode")
+
+
+async def handle_read_event_logs(arguments: Dict[str, Any]) -> list[types.TextContent]:
+    """Fetch recent diagnostic system/application event logs on active host"""
+    global connection_mode, ssh_client, ps_host
+    log_name = arguments.get("log_name", "System")
+    level = arguments.get("level", "All")
+    count = arguments.get("count", 10)
+    
+    if connection_mode == "powershell":
+        if not ps_host:
+            raise ValueError("Not connected to PowerShell host")
+            
+        cmd = f"Get-EventLog -LogName '{ps_esc(log_name)}' -Newest {int(count)}"
+        if level != "All":
+            cmd += f" -EntryType '{ps_esc(level)}'"
+        cmd += " | Select-Object TimeGenerated, EntryType, Source, Message, EventID | ConvertTo-Json -Compress"
+        
+        exit_code, stdout, stderr = await run_active_powershell(cmd)
+        if exit_code != 0:
+            raise ValueError(f"Reading event logs failed: {stderr.strip() or stdout.strip()}")
+        return [types.TextContent(type="text", text=f"Recent event logs from {log_name} on {ps_host}:\n{stdout.strip()}")]
+        
+    elif connection_mode == "ssh":
+        if not ssh_client:
+            raise ValueError("Not connected to SSH server")
+            
+        lvl_map = {"Error": "err", "Warning": "warning", "Information": "info"}
+        lvl_arg = f"-p {lvl_map[level]}" if level in lvl_map else ""
+        
+        cmd = f"journalctl {lvl_arg} -n {int(count)} --no-pager"
+        stdin, stdout, stderr = ssh_client.exec_command(cmd, timeout=30)
+        stdout_data = stdout.read().decode("utf-8")
+        stderr_data = stderr.read().decode("utf-8")
+        exit_status = stdout.channel.recv_exit_status()
+        
+        if exit_status != 0:
+            fallback_file = "/var/log/syslog" if log_name == "System" else f"/var/log/{log_name}"
+            cmd = f"tail -n {int(count)} {fallback_file}"
+            stdin, stdout, stderr = ssh_client.exec_command(cmd, timeout=30)
+            stdout_data = stdout.read().decode("utf-8")
+            stderr_data = stderr.read().decode("utf-8")
+            
+        return [types.TextContent(type="text", text=f"Recent log entries:\n{stdout_data}")]
+    else:
+        raise ValueError("Invalid connection mode")
 
 
 async def main():
