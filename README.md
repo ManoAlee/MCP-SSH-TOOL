@@ -193,19 +193,8 @@ powershell -ExecutionPolicy Bypass -File C:\ssh-mcp\scripts\quick-check.ps1
 
 ## 🖥️ Integração com Ambientes de Desenvolvimento e IA
 
-### Cursor & Windsurf
-Adicione o servidor como uma ferramenta **Stdio MCP** nas configurações de desenvolvimento do editor:
-* **Nome**: `ssh-connect`
-* **Tipo**: `command`
-* **Comando**: `C:\ssh-mcp\server\.venv\Scripts\python.exe`
-* **Argumentos**: `C:\ssh-mcp\server\src\ssh_connect\server.py`
-
-### Claude Desktop
-
-Para integrar o servidor MCP no Claude Desktop, edite o arquivo de configuração localizado em `%APPDATA%\Claude\claude_desktop_config.json`. 
-
-Você pode definir as variáveis de conexão diretamente no objeto `"env"` (eliminando a necessidade de arquivo `.env` para o Claude Desktop):
-
+### 1. Claude Desktop
+Edite o arquivo de configuração localizado em `%APPDATA%\Claude\claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
@@ -230,6 +219,65 @@ Você pode definir as variáveis de conexão diretamente no objeto `"env"` (elim
 ```
 > [!TIP]
 > Deixe os campos `SSH_USERNAME` e `SSH_PASSWORD` vazios para que o Claude Desktop utilize o **Kerberos SSO** do usuário logado na máquina de forma automática.
+
+### 2. Cursor
+Vá em `Settings` (Configurações) -> `Features` -> `MCP` -> clique em `+ Add New MCP Server`:
+* **Name**: `ssh-powershell-mcp`
+* **Type**: `command`
+* **Command**: `C:\ssh-mcp\server\.venv\Scripts\python.exe C:\ssh-mcp\server\src\ssh_connect\server.py`
+
+### 3. Windsurf
+Vá em `Settings` -> `Advanced` -> `MCP Config` ou edite diretamente o arquivo `%USERPROFILE%\.codeium\windsurf\mcp_config.json`:
+```json
+{
+  "mcpServers": {
+    "ssh-powershell-mcp": {
+      "type": "stdio",
+      "command": "C:\\ssh-mcp\\server\\.venv\\Scripts\\python.exe",
+      "args": [
+        "C:\\ssh-mcp\\server\\src\\ssh_connect\\server.py"
+      ],
+      "cwd": "C:\\ssh-mcp\\server",
+      "env": {
+        "SSH_HOST": "localhost",
+        "CONNECTION_MODE": "powershell",
+        "PYTHONUNBUFFERED": "1"
+      }
+    }
+  }
+}
+```
+
+### 4. VS Code (Cline / Roo Code / Roo Cline / Devins)
+Se você utiliza extensões de IA no VS Code que suportam MCP (como **Cline** ou **Roo Code**), edite o arquivo de configuração da extensão localizada em `%APPDATA%\Code\User\globalStorage\saoudrizwan.claude-dev\settings\cline_mcp_settings.json` (ou substitua pelo diretório da extensão correspondente):
+```json
+{
+  "mcpServers": {
+    "ssh-powershell-mcp": {
+      "type": "stdio",
+      "command": "C:\\ssh-mcp\\server\\.venv\\Scripts\\python.exe",
+      "args": [
+        "C:\\ssh-mcp\\server\\src\\ssh_connect\\server.py"
+      ],
+      "cwd": "C:\\ssh-mcp\\server",
+      "env": {
+        "SSH_HOST": "localhost",
+        "CONNECTION_MODE": "powershell",
+        "PYTHONUNBUFFERED": "1"
+      },
+      "disabled": false
+    }
+  }
+}
+```
+
+### 5. Double.bot
+Vá em `Settings` -> `MCP` e adicione a configuração:
+* **Command**: `C:\ssh-mcp\server\.venv\Scripts\python.exe C:\ssh-mcp\server\src\ssh_connect\server.py`
+
+### 6. Supermaven
+No painel de configuração do Supermaven, adicione o servidor stdio apontando para o binário Python e o script:
+* **Path / Command**: `C:\ssh-mcp\server\.venv\Scripts\python.exe C:\ssh-mcp\server\src\ssh_connect\server.py`
 
 ---
 
