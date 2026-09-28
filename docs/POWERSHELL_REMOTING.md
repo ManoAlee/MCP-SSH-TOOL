@@ -104,4 +104,4 @@ C:\ssh-mcp\server\.venv\Scripts\python.exe C:\ssh-mcp\tests\test_live.py
 ```
 
 ---
-*Documentação oficial de engenharia de infraestrutura da Automotion.*
+*Documentação oficial de engenharia de infraestrutura da Enterprise.*

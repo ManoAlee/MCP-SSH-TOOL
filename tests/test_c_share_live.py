@@ -23,8 +23,8 @@ async def main():
         f.write("Teste de transferência direta via compartilhamento C$ - MCP")
         
     try:
-        # Conectar ao host ti-aramos
-        res_conn = await server.handle_connect({"host": "ti-aramos", "mode": "powershell"})
+        # Conectar ao host remote-host-01
+        res_conn = await server.handle_connect({"host": "remote-host-01", "mode": "powershell"})
         print(f"[OK] {res_conn[0].text}")
         
         # Executar upload

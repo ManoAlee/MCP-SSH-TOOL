@@ -43,7 +43,7 @@
 
 ### 5. CONECTIVIDADE (2/2 ✓)
 ```
-[✓] SSH 10.0.0.7 testado
+[✓] SSH 192.168.1.100 testado
 [✓] Autenticação validada
 ```
 

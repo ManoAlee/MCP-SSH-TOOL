@@ -190,7 +190,7 @@ Conecta ao servidor SSH configurado.
 **Exemplo:**
 ```json
 {
-  "host": "10.0.0.7",
+  "host": "192.168.1.100",
   "port": 22,
   "username": "user",
   "password": "pass"
@@ -199,7 +199,7 @@ Conecta ao servidor SSH configurado.
 
 **Retorno:**
 ```
-Connected to user@10.0.0.7:22
+Connected to user@192.168.1.100:22
 ```
 
 ---
@@ -379,7 +379,7 @@ MCP Server
    ↓
    paramiko.SSHClient.connect()
    ↓
-SSH Server (10.0.0.7:22)
+SSH Server (192.168.1.100:22)
    ↓
    Credenciais validadas
    ↓
@@ -469,7 +469,7 @@ Test-Path "C:\Users\seu_usuario\.local\bin\uv.exe"
    ```
 
 3. Confirmar credenciais:
-   - Host: 10.0.0.7
+   - Host: 192.168.1.100
    - Porta: 22
    - Usuário: correto
    - Senha: correta (sem espaços extras)
@@ -492,10 +492,10 @@ Test-Path "C:\Users\seu_usuario\.local\bin\uv.exe"
 **Solução:**
 ```powershell
 # Testar conectividade
-Test-NetConnection -ComputerName "10.0.0.7" -Port 22
+Test-NetConnection -ComputerName "192.168.1.100" -Port 22
 
 # Testar ping
-ping 10.0.0.7
+ping 192.168.1.100
 
 # Aumentar timeout
 # Edite o comando para incluir timeout maior

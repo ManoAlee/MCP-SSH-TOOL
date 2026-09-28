@@ -73,7 +73,7 @@ Todas as validaÃ§Ãµes tÃ©cnicas foram **APROVADAS**. O sistema estÃ¡ pro
 - âœ“ Command "uv" correto
 - âœ“ Argumentos completos
 - âœ“ VariÃ¡veis de ambiente configuradas
-- âœ“ Host: 10.0.0.7 (vÃ¡lido)
+- âœ“ Host: 192.168.1.100 (vÃ¡lido)
 - âœ“ Porta: 22 (SSH padrÃ£o)
 - âœ“ Credenciais presentes
 
@@ -161,7 +161,7 @@ Principais:
 
 ### 5.1 Teste de ConexÃ£o
 ```
-Host: 10.0.0.7
+Host: 192.168.1.100
 Porta: 22
 UsuÃ¡rio: <YOUR_USERNAME>
 MÃ©todo: Password Authentication
@@ -315,7 +315,7 @@ SoluÃ§Ã£o:
 ```
 SoluÃ§Ã£o:
 1. Validar credenciais em mcp_config.json
-2. Verificar conectividade: ping 10.0.0.7
+2. Verificar conectividade: ping 192.168.1.100
 3. Testar SSH manualmente com paramiko
 ```
 

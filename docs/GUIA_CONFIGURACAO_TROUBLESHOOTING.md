@@ -38,7 +38,7 @@ uv --version
         "ssh-connect"
       ],
       "env": {
-        "SSH_HOST": "10.0.0.7",
+        "SSH_HOST": "192.168.1.100",
         "SSH_PORT": "22",
         "SSH_USERNAME": "seu_usuario_ssh",
         "SSH_PASSWORD": "sua_senha_ssh",
@@ -149,8 +149,8 @@ Em vez de:
 **Verificação:**
 ```powershell
 # 1. Teste conectividade
-ping 10.0.0.7
-Test-NetConnection -ComputerName "10.0.0.7" -Port 22
+ping 192.168.1.100
+Test-NetConnection -ComputerName "192.168.1.100" -Port 22
 
 # 2. Teste credenciais
 cd C:\ssh-mcp\ssh-connect-mcp-server
@@ -243,13 +243,13 @@ Get-Content "C:\Users\seu_usuario\.gemini\config\mcp_config.json" | ConvertFrom-
 **Verificação:**
 ```powershell
 # Medir latência
-ping 10.0.0.7 -Count 4
+ping 192.168.1.100 -Count 4
 
 # Verificar rota
-tracert 10.0.0.7
+tracert 192.168.1.100
 
 # Testar porta SSH
-Test-NetConnection -ComputerName "10.0.0.7" -Port 22 -InformationLevel Detailed
+Test-NetConnection -ComputerName "192.168.1.100" -Port 22 -InformationLevel Detailed
 ```
 
 **Solução:**

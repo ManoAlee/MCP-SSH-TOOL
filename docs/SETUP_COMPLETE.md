@@ -19,7 +19,7 @@
 ### 4. ConfiguraÃ§Ã£o MCP
 - **Local 1:** C:\Users\<YOUR_USER>\.gemini\config\mcp_config.json
 - **Local 2:** C:\Users\<YOUR_USER>\.gemini\antigravity\mcp_config.json
-- **Status:** âœ“ Configurado com servidor SSH 10.0.0.7
+- **Status:** âœ“ Configurado com servidor SSH 192.168.1.100
 
 ### 5. Logging
 - **Arquivo de log:** C:\ssh-mcp\ssh-mcp.log
@@ -94,7 +94,7 @@ Disable-ScheduledTask -TaskName "SSH-Connect MCP Server"
 
 ## ðŸ”§ CONFIGURAÃ‡ÃƒO DO SERVIDOR SSH
 
-**Host:** 10.0.0.7  
+**Host:** 192.168.1.100  
 **Porta:** 22  
 **UsuÃ¡rio:** <YOUR_USERNAME>  
 **AutenticaÃ§Ã£o:** Senha  

@@ -229,7 +229,7 @@ powershell -ExecutionPolicy Bypass -File "C:\ssh-mcp\quick-check.ps1"
 ### Troubleshooting Rápido
 ```powershell
 # 1. Verifique conectividade
-ping 10.0.0.7
+ping 192.168.1.100
 
 # 2. Teste SSH
 cd C:\ssh-mcp\ssh-connect-mcp-server

@@ -13,7 +13,7 @@
   ```
 - [ ] Testar conectividade SSH
   ```powershell
-  Test-NetConnection -ComputerName "10.0.0.7" -Port 22
+  Test-NetConnection -ComputerName "192.168.1.100" -Port 22
   ```
 
 ### ☑ Durante o Dia
@@ -156,7 +156,7 @@
    ```
 3. [ ] Testar conectividade
    ```powershell
-   Test-NetConnection -ComputerName "10.0.0.7" -Port 22
+   Test-NetConnection -ComputerName "192.168.1.100" -Port 22
    ```
 4. [ ] Atualizar credenciais se necessário
 5. [ ] Reiniciar servidor
