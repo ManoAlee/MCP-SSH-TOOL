@@ -11,7 +11,6 @@ Note: This is a basic test and does not actually connect to an SSH server.
 """
 
 import asyncio
-import json
 import os
 import sys
 import unittest
@@ -24,6 +23,14 @@ from src.ssh_connect import server
 
 class TestSSHConnect(unittest.TestCase):
     """Test cases for the SSH MCP server."""
+
+    def setUp(self):
+        """Set up test environment and isolate from host configuration."""
+        server.connection_mode = "ssh"
+        server.SSH_HOST = "test.example.com"
+        server.SSH_USERNAME = "testuser"
+        server.SSH_PASSWORD = "testpass"
+        server.CONNECTION_MODE = "ssh"
 
     def test_import(self):
         """Test that the server module can be imported."""
@@ -46,27 +53,25 @@ class TestSSHConnect(unittest.TestCase):
         """Run the async test for listing tools."""
         asyncio.run(self.async_test_list_tools())
 
-    @patch('paramiko.SSHClient')
     async def async_test_connect(self, mock_ssh_client):
         """Test that the server can handle connect tool calls."""
-        # Mock the SSH client
         mock_instance = MagicMock()
         mock_ssh_client.return_value = mock_instance
         mock_instance.open_sftp.return_value = MagicMock()
         
-        # Set environment variables for testing
-        os.environ["SSH_HOST"] = "test.example.com"
-        os.environ["SSH_USERNAME"] = "testuser"
-        os.environ["SSH_PASSWORD"] = "testpass"
-        
-        # Call the connect tool
-        result = await server.handle_call_tool("connect", {})
+        # Call the connect tool with explicit ssh mode
+        result = await server.handle_call_tool("connect", {
+            "host": "test.example.com",
+            "username": "testuser",
+            "password": "testpass",
+            "mode": "ssh"
+        })
         
         # Check the result
         self.assertIsNotNone(result)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0].type, "text")
-        self.assertIn("Connected to", result[0].text)
+        self.assertIn("Connected to testuser@test.example.com:22 via SSH", result[0].text)
         
         # Verify that the SSH client was called with the correct arguments
         mock_ssh_client.assert_called_once()
@@ -76,15 +81,13 @@ class TestSSHConnect(unittest.TestCase):
         self.assertEqual(connect_args["username"], "testuser")
         self.assertEqual(connect_args["password"], "testpass")
 
-    @patch('paramiko.SSHClient')
+    @patch('src.ssh_connect.server.paramiko.SSHClient')
     def test_connect(self, mock_ssh_client):
         """Run the async test for connect tool."""
         asyncio.run(self.async_test_connect(mock_ssh_client))
 
-    @patch('paramiko.SSHClient')
     async def async_test_execute(self, mock_ssh_client):
-        """Test that the server can handle execute tool calls."""
-        # Mock the SSH client and channel
+        """Test that the server can handle execute tool calls in SSH mode."""
         mock_instance = MagicMock()
         mock_ssh_client.return_value = mock_instance
         
@@ -97,7 +100,8 @@ class TestSSHConnect(unittest.TestCase):
         mock_stdout.channel.recv_exit_status.return_value = 0
         mock_instance.exec_command.return_value = (mock_stdin, mock_stdout, mock_stderr)
         
-        # Set the global ssh_client
+        # Explicitly set active client and mode
+        server.connection_mode = "ssh"
         server.ssh_client = mock_instance
         
         # Call the execute tool
@@ -114,7 +118,7 @@ class TestSSHConnect(unittest.TestCase):
         # Verify that exec_command was called with the correct arguments
         mock_instance.exec_command.assert_called_once_with("ls -la", timeout=60)
 
-    @patch('paramiko.SSHClient')
+    @patch('src.ssh_connect.server.paramiko.SSHClient')
     def test_execute(self, mock_ssh_client):
         """Run the async test for execute tool."""
         asyncio.run(self.async_test_execute(mock_ssh_client))

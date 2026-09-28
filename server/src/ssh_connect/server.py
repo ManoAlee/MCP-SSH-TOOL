@@ -81,6 +81,35 @@ CONNECTION_MODE = os.environ.get("CONNECTION_MODE", "ssh").lower()
 
 server = Server("ssh-connect")
 
+# MCP 1.x / 2.x Compatibility Bridge
+if not hasattr(server, "list_tools"):
+    def _compat_list_tools():
+        def decorator(fn):
+            async def _wrapper(req):
+                res = await fn()
+                if isinstance(res, list):
+                    return types.ListToolsResult(tools=res)
+                return res
+            server.add_request_handler("tools/list", types.ListToolsRequest, _wrapper)
+            return fn
+        return decorator
+    server.list_tools = _compat_list_tools
+
+if not hasattr(server, "call_tool"):
+    def _compat_call_tool():
+        def decorator(fn):
+            async def _wrapper(req):
+                name = getattr(req.params, "name", None) or getattr(req, "name", "")
+                args = getattr(req.params, "arguments", None) or getattr(req, "arguments", {})
+                res = await fn(name, args)
+                if isinstance(res, list):
+                    return types.CallToolResult(content=res)
+                return res
+            server.add_request_handler("tools/call", types.CallToolRequest, _wrapper)
+            return fn
+        return decorator
+    server.call_tool = _compat_call_tool
+
 # Configure logging to a file for diagnostics (append mode)
 # Default log path inside project_root/logs
 default_log_dir = os.path.join(project_root, "logs")
