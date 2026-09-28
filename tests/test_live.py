@@ -10,10 +10,10 @@ sys.path.insert(0, os.path.join(project_root, "server", "src"))
 from ssh_connect import server
 
 async def main():
-    print("Iniciando teste de conexao ao lab-mramos via PowerShell...")
+    print("Iniciando teste de conexao ao ti-aramos via PowerShell...")
     try:
         # Tenta conectar via powershell
-        res = await server.handle_connect({"host": "lab-mramos", "mode": "powershell"})
+        res = await server.handle_connect({"host": "ti-aramos", "mode": "powershell"})
         print(f"[OK] Conectado com sucesso: {res[0].text}")
         
         # Tenta executar o comando solicitado pelo usuario

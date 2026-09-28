@@ -100,9 +100,17 @@ class TestSSHConnect(unittest.TestCase):
         mock_stdout.channel.recv_exit_status.return_value = 0
         mock_instance.exec_command.return_value = (mock_stdin, mock_stdout, mock_stderr)
         
-        # Explicitly set active client and mode
-        server.connection_mode = "ssh"
-        server.ssh_client = mock_instance
+        # Set the mock session in pool
+        from ssh_connect.pool import HostSession
+        session = HostSession(
+            alias="test",
+            mode="ssh",
+            host="test.example.com",
+            ssh_client=mock_instance
+        )
+        mock_instance.get_transport.return_value.is_active.return_value = True
+        server.pool._sessions["test"] = session
+        server.pool._active_alias = "test"
         
         # Call the execute tool
         result = await server.handle_call_tool("execute", {"command": "ls -la"})

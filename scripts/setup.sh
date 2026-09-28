@@ -49,15 +49,15 @@ fi
 PYTHON_VERSION=$(python3 --version)
 echo -e "  ${GREEN}[OK] Encontrado: $PYTHON_VERSION${NC}"
 
-# 4. Criar/Reconstruir Ambiente Virtual (.venv)
-echo -e "\n${YELLOW}[Passo 4] Configurando o ambiente virtual Python (.venv)...${NC}"
+# 4. Criar/Reconstruir Ambiente Virtual (.venv-linux)
+echo -e "\n${YELLOW}[Passo 4] Configurando o ambiente virtual Python (.venv-linux)...${NC}"
 cd server
 
-# Verificar se existe .venv do Windows (com a pasta Scripts)
-if [ -d ".venv" ]; then
-    if [ -d ".venv/Scripts" ] || [ ! -d ".venv/bin" ]; then
-        echo -e "${YELLOW}Aviso: Detectado ambiente virtual de Windows em server/.venv. Removendo para recriar no Linux...${NC}"
-        rm -rf .venv
+# Verificar se existe .venv-linux do Windows (com a pasta Scripts)
+if [ -d ".venv-linux" ]; then
+    if [ -d ".venv-linux/Scripts" ] || [ ! -d ".venv-linux/bin" ]; then
+        echo -e "${YELLOW}Aviso: Detectado ambiente virtual de Windows em server/.venv-linux. Removendo para recriar no Linux...${NC}"
+        rm -rf .venv-linux
     fi
 fi
 
@@ -71,18 +71,18 @@ else
 fi
 
 if [ "$USE_UV" = true ]; then
-    uv venv .venv
+    uv venv .venv-linux
     echo -e "${YELLOW}Instalando dependências e o pacote do servidor em modo editável com uv...${NC}"
     uv pip install -e .
 else
-    python3 -m venv .venv
+    python3 -m venv .venv-linux
     echo -e "${YELLOW}Instalando dependências e o pacote do servidor em modo editável com pip...${NC}"
-    .venv/bin/pip install --upgrade pip
-    .venv/bin/pip install -e .
+    .venv-linux/bin/pip install --upgrade pip
+    .venv-linux/bin/pip install -e .
 fi
 
 cd ..
-echo -e "  ${GREEN}[OK] Ambiente virtual (.venv) configurado com sucesso!${NC}"
+echo -e "  ${GREEN}[OK] Ambiente virtual (.venv-linux) configurado com sucesso!${NC}"
 
 # 5. Configurar arquivo de configuração MCP local
 echo -e "\n${YELLOW}[Passo 5] Instalando configurações MCP locais...${NC}"

@@ -43,7 +43,7 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 
-# IDEs
+# IDEs & Tools
 .vscode/
 .idea/
 *.suo
@@ -51,3 +51,7 @@ Desktop.ini
 *.njsproj
 *.sln
 *.swp
+.antigravitycli/
+graphify-out/
+C*
+

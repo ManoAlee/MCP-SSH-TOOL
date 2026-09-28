@@ -1,4 +1,4 @@
-﻿# Script PowerShell para iniciar o servidor MCP SSH-Connect automaticamente
+# Script PowerShell para iniciar o servidor MCP SSH-Connect automaticamente
 # Este script sera executado na inicializacao do sistema
 
 param(
@@ -7,7 +7,7 @@ param(
 
 # Configuracoes
 $SERVER_PATH = "C:\ssh-mcp\server"
-$UV_BIN = "C:\Users\<YOUR_USER>\.local\bin"
+$UV_BIN = "$env:USERPROFILE\.local\bin"
 $LOG_FILE = "C:\ssh-mcp\logs\ssh-mcp.log"
 $PID_FILE = "C:\ssh-mcp\logs\ssh-mcp.pid"
 

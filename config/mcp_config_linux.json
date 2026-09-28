@@ -2,7 +2,7 @@
   "mcpServers": {
     "ssh-connect": {
       "type": "stdio",
-      "command": "/mnt/c/ssh-mcp/server/.venv/bin/python",
+      "command": "/mnt/c/ssh-mcp/server/.venv-linux/bin/python",
       "args": [
         "/mnt/c/ssh-mcp/server/src/ssh_connect/server.py"
       ],

@@ -56,11 +56,20 @@ def test_mcp_server():
     
     try:
         # Determine executable path dynamically based on OS
-        exe_paths = [
-            os.path.join(project_root, "server", ".venv", "bin", "ssh-connect"),
-            os.path.join(project_root, "server", ".venv", "Scripts", "ssh-connect.exe"),
-            os.path.join(project_root, "server", ".venv", "Scripts", "ssh-connect"),
-        ]
+        if os.name == 'nt':
+            exe_paths = [
+                os.path.join(project_root, "server", ".venv", "Scripts", "ssh-connect.exe"),
+                os.path.join(project_root, "server", ".venv", "Scripts", "ssh-connect"),
+                os.path.join(project_root, "server", ".venv-linux", "bin", "ssh-connect"),
+                os.path.join(project_root, "server", ".venv", "bin", "ssh-connect"),
+            ]
+        else:
+            exe_paths = [
+                os.path.join(project_root, "server", ".venv-linux", "bin", "ssh-connect"),
+                os.path.join(project_root, "server", ".venv", "bin", "ssh-connect"),
+                os.path.join(project_root, "server", ".venv", "Scripts", "ssh-connect.exe"),
+                os.path.join(project_root, "server", ".venv", "Scripts", "ssh-connect"),
+            ]
         
         exe_path = None
         for p in exe_paths:
@@ -73,7 +82,7 @@ def test_mcp_server():
             if os.name == 'nt':
                 exe_path = os.path.join(project_root, "server", ".venv", "Scripts", "ssh-connect.exe")
             else:
-                exe_path = os.path.join(project_root, "server", ".venv", "bin", "ssh-connect")
+                exe_path = os.path.join(project_root, "server", ".venv-linux", "bin", "ssh-connect")
 
         print(f"Starting server process using: {exe_path}")
 
