@@ -81,7 +81,7 @@ class TestSSHConnect(unittest.TestCase):
         self.assertEqual(connect_args["username"], "testuser")
         self.assertEqual(connect_args["password"], "testpass")
 
-    @patch('src.ssh_connect.server.paramiko.SSHClient')
+    @patch('paramiko.SSHClient')
     def test_connect(self, mock_ssh_client):
         """Run the async test for connect tool."""
         asyncio.run(self.async_test_connect(mock_ssh_client))
@@ -126,7 +126,7 @@ class TestSSHConnect(unittest.TestCase):
         # Verify that exec_command was called with the correct arguments
         mock_instance.exec_command.assert_called_once_with("ls -la", timeout=60)
 
-    @patch('src.ssh_connect.server.paramiko.SSHClient')
+    @patch('paramiko.SSHClient')
     def test_execute(self, mock_ssh_client):
         """Run the async test for execute tool."""
         asyncio.run(self.async_test_execute(mock_ssh_client))
